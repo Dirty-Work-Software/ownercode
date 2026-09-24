@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node .ownercode/check-guards.mjs", "timeout": 10 } ] }
+    ]
+  }
+}

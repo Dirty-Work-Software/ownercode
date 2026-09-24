@@ -1,0 +1,33 @@
+# build
+dist/
+.astro/
+.wrangler/
+node_modules/
+
+# secrets: never commit. Templates are named env.example and
+# dev.vars.example (no leading dot), so these lines never hide them.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+*credentials*.json
+*service-account*.json
+*.pem
+
+# customer data: real customer files stay in imports/, never in git
+imports/
+*.csv
+*.tsv
+*.xlsx
+*.xls
+
+# local state
+.claude/settings.local.json
+.claude/tmp/
+.playwright-mcp/
+test-results/
+playwright-report/
+
+# os
+.DS_Store
+Thumbs.db

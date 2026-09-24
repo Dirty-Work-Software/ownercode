@@ -1,0 +1,12 @@
+{
+  "name": "ownercode",
+  "owner": { "name": "Dirty Work Software" },
+  "metadata": { "description": "Ownercode: build a website and a CRM by directing an AI agent." },
+  "plugins": [
+    {
+      "name": "ownercode",
+      "source": "./plugins/ownercode",
+      "description": "Rules, task system, safety guards and stack skills for building on Astro and Cloudflare with an AI agent."
+    }
+  ]
+}

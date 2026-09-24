@@ -1,0 +1,24 @@
+# Versions this kit assumes
+
+One place to check whether the free kit's pinned facts are still current. If you
+find a version number, a model id, or a specific tool release written anywhere
+else in the free kit, move it here or make that line self-checking instead.
+
+## Last verified
+2026-09-23, by running the checks in the table below, and by running the "Start a new
+project" steps of `docs/astro-cloudflare-conventions.md` in a scratch folder.
+
+| Pinned fact | Current value (as of Last verified) | How to check |
+|---|---|---|
+| Claude models the generated app calls | Default: `claude-sonnet-5`. Cheap classification: `claude-haiku-4-5-20251001` (alias `claude-haiku-4-5`). Haiku 4.5 retires "not sooner than October 15, 2026": check on that date, and move to the replacement the page names. Biggest: `claude-opus-5-5` or `claude-fable-5-1` (Fable costs more). | `https://platform.claude.com/docs/en/about-claude/models/overview` (no sign-in needed). Developer check: `GET https://api.anthropic.com/v1/models` with your own `ANTHROPIC_API_KEY`. |
+| Claude Code defaults the guide mentions | Pro and Max start on Opus 5.5. Effort levels: `low`, `medium`, `high`, `xhigh`, `max`; Opus 5.5 defaults to `medium`. Fast mode works on Opus only and bills usage credits, not the plan. Fable can bill usage credits too. | `https://code.claude.com/docs/en/model-config` and `https://code.claude.com/docs/en/fast-mode` |
+| Node.js | 22 or newer (the LTS release). Astro 7 needs 22.12 or newer. Corepack (needed for `pnpm`) ships in Node 22 and 24 but is being dropped starting Node 25. | `node --version`, then `corepack --version`. If the second fails: `npm install -g pnpm` instead. |
+| pnpm | 11.x. On the first install it stops with `Ignored build scripts` until `pnpm approve-builds esbuild workerd` is run. That writes `allowBuilds` into `pnpm-workspace.yaml`. | `pnpm --version` |
+| create-astro | 5.2.4. In a folder that is not empty, `pnpm create astro@latest . --yes` builds into a random subfolder. The minimal template ships its own `AGENTS.md`, `CLAUDE.md`, `README.md` and `.gitignore`, which the scaffold steps delete. | `pnpm view create-astro version`, then run the scaffold step in a scratch folder that holds one file. |
+| Astro | 7.x (7.3.4). `security: { csp: true }` writes a `<meta>` script policy with a hash for each of Astro's own inline scripts. | `pnpm view astro version` |
+| TypeScript | 6.x (6.0.3). `astro check` refuses TypeScript 7 ("does not currently support TypeScript 7.0"), and pnpm installs 7 unless told `typescript@^6`. When `astro check` accepts 7, drop the pin. | `pnpm view typescript version`, then `pnpm exec astro check` in a project on the newest TypeScript. |
+| Cloudflare Wrangler | 4.x (4.136.3 and 4.137.0). Refuses to deploy while `dist/_worker.js/` is in the assets folder, unless `public/.assetsignore` holds `_worker.js`. An empty `.assetsignore` hides the error and serves the server code. | `npx wrangler --version`, then `pnpm run deploy:check` in a project. |
+| Tailwind CSS | v4. The kit's styling convention (CSS-based `@theme` block, no `tailwind.config.js`) assumes v4's config model, not just its version number. | `pnpm view tailwindcss version`. If it's moved to v5, re-read the Tailwind section of `docs/astro-cloudflare-conventions.md` against Tailwind's own v5 upgrade guide before trusting it as-is. |
+| Windows: longest project path for the local D1 database | 130 characters. At 131, `npx wrangler d1 migrations apply DB --local` fails with `SQLITE_CANTOPEN` (`unable to open database file`), or only `internal error; reference = ...` on newer wrangler. Measured with wrangler 4.71.0 and 4.137.0, with the Windows long-paths setting ON: that setting does not fix it. Wrangler adds about 129 characters below the project (`.wrangler\state\v3\d1\miniflare-D1DatabaseObject\<64-character id>.sqlite-journal`), and Windows stops at 259. The plugin's self-check (`hooks/self-check.mjs`) warns above 120. | In a throwaway project with one D1 binding and one migration, run `npx wrangler d1 migrations apply DB --local` from folders 130 and 131 characters long. If the limit moved, change the 120 in `hooks/self-check.mjs`. |
+| Cloudflare D1 free/paid limits | 100k rows per query result, 1MB per row, 10GB per database on paid. | `https://developers.cloudflare.com/d1/platform/limits/` |
+| "Claude in Chrome" browser extension | Chrome Web Store listing title is **"Claude"**, publisher **Anthropic**. "Claude in Chrome" is the feature's name inside the listing, not the store tile's title. | Open the Chrome Web Store, search "Claude", confirm the publisher reads Anthropic before installing. |

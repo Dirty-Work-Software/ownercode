@@ -1,0 +1,93 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm test *)",
+      "Bash(npx wrangler dev *)",
+      "Bash(npx wrangler d1 execute * --local *)",
+      "Bash(npx wrangler d1 migrations apply * --local)",
+      "Bash(npx wrangler d1 migrations list *)",
+      "Bash(npx wrangler deploy --dry-run*)",
+      "Bash(npx wrangler whoami)",
+      "Bash(npx wrangler --version)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(node --version)",
+      "Bash(node .ownercode/*)",
+      "Edit(/src/**)",
+      "Edit(/functions/**)",
+      "Edit(/migrations/**)",
+      "Edit(/docs/**)",
+      "Edit(/tests/**)",
+      "Edit(/tasks/**)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/AGENTS.md)",
+      "Read(**)"
+    ],
+    "ask": [
+      "Bash(rm -r*)",
+      "Bash(rm -R*)",
+      "Bash(rm -f*)",
+      "Bash(rm --recursive*)",
+      "Bash(rm --force*)",
+      "PowerShell(Remove-Item *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf .git*)",
+      "Bash(rm -rf .claude*)",
+      "Bash(rm -rf .ownercode*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.dev.vars)",
+      "Read(./.dev.vars.*)",
+      "Read(./**/*credentials*.json)",
+      "Read(./**/*service-account*.json)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(./.dev.vars)",
+      "Edit(./.dev.vars.*)",
+      "Bash(* .env)",
+      "Bash(* .env.*)",
+      "Bash(* .dev.vars)",
+      "Bash(bash -c *cat*env*)",
+      "Bash(bash -c *readFileSync*)",
+      "Bash(sh -c *cat*env*)",
+      "Bash(pwsh -c *.env*)",
+      "Bash(powershell -c *.env*)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .ownercode/check-guards.mjs"
+          }
+        ]
+      }
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "ownercode": {
+      "source": {
+        "source": "github",
+        "repo": "Dirty-Work-Software/ownercode"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ownercode@ownercode": true
+  }
+}
