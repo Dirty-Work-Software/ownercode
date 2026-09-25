@@ -15,7 +15,7 @@ A Claude Code session has a context limit. Medium and large projects will not fi
 id: 003-CODE
 title: "Contacts list screen"
 kind: code               # code | content | config | chore
-status: pending          # pending | in_progress | done | cancelled
+status: pending          # pending | in_progress | blocked | skipped | done | cancelled
 priority: high           # high | medium | low
 depends_on: [002-CODE]   # task ids that must be done first, or []
 scope: "src/components/ContactList.tsx, src/pages/app/contacts.astro, functions/api/contacts.ts"
@@ -25,6 +25,9 @@ updated: 2026-09-21
 
 ## In Plain English
 Two or three sentences a non-coder understands. What this gives the owner when done.
+
+## Owner rules
+What the owner decided that this task must follow, copied word for word from the interview or the plan: prices, what a button charges, schedules, who may see what. Write "none" if nothing applies. The builder follows these exactly and asks about anything they do not cover.
 
 ## Description
 What needs to happen and why. Enough that a fresh session with no memory can start.
@@ -54,6 +57,8 @@ Dated entries. What was tried, what failed, what was decided, what the next sess
 |---|---|
 | `pending` | Ready to pick up, or waiting on `depends_on`. |
 | `in_progress` | A session is on it now. Only one task is in progress at a time. |
+| `blocked` | Waits on the owner (an account, a key, a real file). Notes say what for. `next-task` does not offer it. |
+| `skipped` | The owner said "skip" or "not now". `next-task` does not offer it until the owner asks for it by number. |
 | `done` | Every acceptance criterion is ticked with proof. File moves to `tasks/archive/`. |
 | `cancelled` | Not wanted any more. Say why in Notes. File moves to `tasks/archive/`. |
 
@@ -70,6 +75,7 @@ Dated entries. What was tried, what failed, what was decided, what the next sess
 
 - One task per session. Two tasks in one session is how context runs out with both half done.
 - A criterion is ticked with proof or it is not ticked.
+- When the owner says "skip" (or "not now", "later") about a task that also holds work you can do now, move only the owner-only step (a deploy, an account) to a new task and finish the rest. Otherwise, set `status: skipped`, add a dated note with their words, and commit. When a task waits on something only the owner can do, set `status: blocked` and say what it waits for. To bring one back, the owner names it; set it to `pending`.
 - Never edit a task's `id` or filename. Numbers only go up. Next number = highest number in `tasks/` and `tasks/archive/` plus one.
 - Never delete a task file. Cancel it.
 - `tasks/lessons.md` is for corrections that became rules. It is not a task.

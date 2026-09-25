@@ -39,12 +39,18 @@ codex plugin add ownercode@ownercode
 
 Then open Codex, type `/hooks`, and trust the Ownercode hooks. Codex runs no safety guard until you do this once. Codex updates the plugin by itself.
 
+Check it: in a new Codex session, the first message must be `Ownercode safety guards: on.` If it is not, the guards are off. Type `/hooks`, trust the Ownercode hooks, and restart Codex.
+
+On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.md section 5, "Codex on Windows", says what it is and what to do.
+
 **A window asks you to sign in to Git or GitHub?** Close it. Ownercode needs no account and no sign-in. That window means the address has a typo, or the repo cannot be reached. Check the spelling: `Dirty-Work-Software/ownercode`.
 
 **Let the agent do it.** You can paste this to either agent instead:
 
-> Install the Ownercode plugin for the tool you are running in, from the plugin marketplace `Dirty-Work-Software/ownercode` on GitHub. Claude Code: `claude plugin marketplace add Dirty-Work-Software/ownercode`, then `claude plugin install ownercode@ownercode`. Codex: `codex plugin marketplace add Dirty-Work-Software/ownercode`, then `codex plugin add ownercode@ownercode`. Check that Git is installed first. Show me the output, then tell me to restart, and tell me any step I must do myself.
+> Install the Ownercode plugin for the tool you are running in, from the plugin marketplace `Dirty-Work-Software/ownercode` on GitHub. Claude Code: `claude plugin marketplace add Dirty-Work-Software/ownercode`, then `claude plugin install ownercode@ownercode`. Codex: `codex plugin marketplace add Dirty-Work-Software/ownercode`, then `codex plugin add ownercode@ownercode`. Check that Git is installed first. Show me the output, then tell me to restart, and tell me any step I must do myself: in Claude Code, turning on auto-update (`/plugin`, Marketplaces, ownercode, Enable auto-update); in Codex, trusting the hooks (`/hooks`). If a command fails only inside your sandbox, say so, and give me the two lines to type in my own terminal.
 
 ## Last verified
 
-2026-09-23, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6. Install, update and a safety-guard block were run in both tools against a local copy of this repository. Command names can change; if one fails, ask the agent to read the tool's current plugin docs.
+2026-09-24, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6. Install, update and a safety-guard block were run in both tools against a local copy of this repository. Command names can change; if one fails, ask the agent to read the tool's current plugin docs.
+
+Version 0.2.1: guard repair guidance uses the marketplace where Ownercode was installed, including a bundled distribution.

@@ -48,10 +48,10 @@ deployed: <url or "not deployed">   verified: <yes/no, how>
 - <other relevant files>
 ```
 
-Also save the same block to `docs/handoff-next.md`, overwriting. Do not show the owner the block. End your reply with exactly these three parts:
+Also save the same block to `docs/handoff-next.md`, overwriting. Do not show the owner the block. Your reply is exactly these three parts, in this order, with nothing technical before the first:
 
 1. **In plain English**, two lines: what the owner can do now that they could not before, and what the next session does.
-2. The model for the next session, in one line. Building from a clear task: "Pick **Sonnet** in the model picker" (Codex: "type `/model` and pick a smaller model than the one you planned with"). Planning, a data-model change, or a bug two sessions could not fix: the biggest model.
+2. The model for the next session, in one line, by the tool you run in. Claude Code, building from a clear task: "Pick **Sonnet** in the model picker". Codex: "type `/model` and pick <the Codex build model named in `docs/versions.md`>"; never name a Claude model in Codex. Planning, a data-model change, or a bug two sessions could not fix: the biggest model (Codex: the plan model in `docs/versions.md`).
 3. The paste, in its own copy box, with one line before it: "Start a new session in this folder and paste this line:"
    ```
    Read docs/handoff-next.md and continue.

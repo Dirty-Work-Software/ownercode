@@ -10,7 +10,7 @@
 // stderr, and an ask is a permission prompt. Codex: both are a "deny", because
 // on Windows Codex turns exit 2 into 1, which it treats as a failed hook.
 //
-// The seven guards, each with its own owner override. The agent adds the
+// The eight guards, each with its own owner override. The agent adds the
 // prefix only after the owner said yes to that exact command.
 //   no-verify   skipping git hooks                     BYPASS_NO_VERIFY_GUARD=1
 //   reset       reset --hard, checkout -f on edits      BYPASS_RESET_GUARD=1
@@ -18,7 +18,9 @@
 //   pr-merge    merging a pull request                  BYPASS_PR_MERGE_GUARD=1
 //   secret      reading or committing a secret file     BYPASS_SECRET_GUARD=1
 //   cloud       live-site and live-database changes     BYPASS_CLOUD_GUARD=1
-//   process     stopping programs by name               BYPASS_PROCESS_GUARD=1
+//   process     stopping programs by name, or another   BYPASS_PROCESS_GUARD=1
+//               project's program by its number
+//   global-config  git config for the whole computer   BYPASS_GLOBAL_CONFIG_GUARD=1
 //
 // A command can hide another one: `bash -c "..."`, `node -e "execSync('...')"`,
 // `pnpm exec git ...`, a full path to git, `cd sub && ...`, a package script.
@@ -39,7 +41,8 @@ const GUARDS = {
   'pr-merge': { bypass: 'BYPASS_PR_MERGE_GUARD', advice: 'Merging ships the change. Tell the owner the pull request is ready, with its link, and wait.' },
   secret: { bypass: 'BYPASS_SECRET_GUARD', advice: 'Never read, print or commit a secret file. To make a local secret, run: node .ownercode/dev-secret.mjs NAME. For a real key, tell the owner the exact line to add to .dev.vars in their own editor. To unstage: git restore --staged <file>.' },
   cloud: { bypass: 'BYPASS_CLOUD_GUARD', advice: 'This changes the live site or the live database. Tell the owner what you want to run and why, with the result of the local run (--local), the build and the tests.' },
-  process: { bypass: 'BYPASS_PROCESS_GUARD', advice: 'Matching by name also stops other projects, other agents, and this session. Stop only a process ID you started (kill <PID>, taskkill /PID <PID> /T /F, Stop-Process -Id <PID>).' },
+  process: { bypass: 'BYPASS_PROCESS_GUARD', advice: 'Stop only a process ID that runs from this project (kill <PID>; in Git Bash taskkill //T //F //PID <PID>; Stop-Process -Id <PID>). A program from another folder belongs to another project or another AI session: tell the owner what holds the port, and use a different port instead.' },
+  'global-config': { bypass: 'BYPASS_GLOBAL_CONFIG_GUARD', advice: 'This changes git for every project on this computer, not only this one. Use a setting for this project only (git config without --global, or git -c name=value <command>). If it is a sandbox limit, say so: the owner\'s install is fine.' },
 };
 
 // ---------- reading a command ----------
@@ -216,6 +219,11 @@ function checkGit(words, i, ctx, found) {
   }
   if (ctx.husky) block('no-verify', 'HUSKY=0 switches the project\'s git hooks off.');
 
+  // global-config: a write to the computer's git settings, not this project's.
+  if (sub === 'config' && has(args, '--global', '--system') && configWrites(args)) {
+    block('global-config', `git config ${has(args, '--system') ? '--system' : '--global'} changes git for every project on this computer.`);
+  }
+
   // reset: commands that overwrite unsaved edits to tracked files
   const overwrites = (sub === 'reset' && has(args, '--hard'))
     || (sub === 'checkout' && (has(args, '--force') || /f/.test(flags)))
@@ -260,6 +268,23 @@ function checkGit(words, i, ctx, found) {
     const secret = [...new Set(files.filter((f) => f && isSecretPath(f)))];
     if (secret.length) block('secret', `this commit would include secret files: ${secret.slice(0, 3).join(', ')}.`);
   }
+}
+
+// `git config` reads with one name and writes with a name and a value, or
+// with a write flag. Git 2.46 added subcommands (get, list, set, unset, ...).
+function configWrites(args) {
+  const verb = args.find((a) => !a.startsWith('-'));
+  if (['get', 'list'].includes(verb)) return false;
+  if (['set', 'unset', 'rename-section', 'remove-section', 'edit'].includes(verb)) return true;
+  if (has(args, '--add', '--unset', '--unset-all', '--replace-all', '--rename-section', '--remove-section', '--edit', '-e')) return true;
+  if (has(args, '--get', '--get-all', '--get-regexp', '--get-urlmatch', '--get-color', '--get-colorbool', '--list', '-l')) return false;
+  const values = ['--type', '--default', '--file', '-f', '--blob', '--comment'];
+  const names = [];
+  for (let k = 0; k < args.length; k++) {
+    if (values.includes(args[k])) { k++; continue; }
+    if (!args[k].startsWith('-') && args[k] !== '>' && args[k] !== '<') names.push(args[k]);
+  }
+  return names.length >= 2;
 }
 
 const PROTECTED = /^(refs\/heads\/)?(main|master)$/;
@@ -366,21 +391,75 @@ function scriptFor(words, cwd) {
 
 const FINDERS = new Set(['pgrep', 'pidof', 'ps', 'tasklist', 'get-process', 'gps', 'get-ciminstance', 'gcim', 'get-wmiobject', 'gwmi']);
 const KILLERS = new Set(['kill', 'stop-process', 'spps', 'taskkill', 'invoke-cimmethod', 'remove-ciminstance', 'remove-wmiobject']);
-function checkProcesses(segs, found) {
+function checkProcesses(segs, ctx, found) {
   const block = (reason) => found.push({ guard: 'process', decision: 'block', reason });
   let finder = false, killer = false;
+  const pids = [];
   for (const { words } of segs) {
     const c = cmdWord(words);
-    const lower = words.map((w) => w.toLowerCase());
+    // Git Bash turns //PID into /PID on the way to a Windows program.
+    const lower = words.map((w) => w.toLowerCase().replace(/^\/\/(?=[a-z])/, '/'));
     if (FINDERS.has(c)) finder = true;
     if (KILLERS.has(c) || (c === 'xargs' && lower.some((w) => KILLERS.has(base(w))))) killer = true;
     if (/\.(terminate|kill)\s*\(/i.test(words.join(' '))) killer = true;
     if (c === 'pkill' || c === 'killall') block(`${c} stops every process whose name matches.`);
     if (c === 'wmic' && lower.includes('process') && lower.some((w) => w === 'delete' || w === 'terminate')) block('wmic stops every process that matches.');
-    if (c === 'taskkill' && (lower.some((w) => w === '/im' || w === '-im') || !lower.some((w) => w === '/pid' || w === '-pid'))) block('taskkill /IM stops every process with that name.');
-    if ((c === 'stop-process' || c === 'spps') && (lower.some((w) => w === '-name' || w === '-processname') || !lower.some((w) => w === '-id' || /^\d+$/.test(w) || /^\$\w+$/.test(w)))) block('Stop-Process by name, or fed from Get-Process, stops every match.');
+    if (c === 'taskkill') {
+      if (lower.some((w) => w === '/im' || w === '-im') || !lower.some((w) => w === '/pid' || w === '-pid')) block('taskkill /IM stops every process with that name.');
+      lower.forEach((w, k) => { if ((w === '/pid' || w === '-pid') && /^\d+$/.test(lower[k + 1] || '')) pids.push(Number(lower[k + 1])); });
+    }
+    if (c === 'stop-process' || c === 'spps') {
+      if (lower.some((w) => w === '-name' || w === '-processname') || !lower.some((w) => w === '-id' || /^\d+$/.test(w) || /^\$\w+$/.test(w))) block('Stop-Process by name, or fed from Get-Process, stops every match.');
+      // ponytail: an ID in a variable ($p.Id) is not checked; add it when a trial shows one stopping another project.
+      lower.forEach((w) => { for (const n of w.split(',')) if (/^\d+$/.test(n)) pids.push(Number(n)); });
+    }
+    // Git Bash's kill takes its own process numbers, not Windows ones. In
+    // PowerShell (Codex on Windows) kill is Stop-Process, with Windows numbers.
+    if (c === 'kill' && (process.platform !== 'win32' || KILL_IS_POWERSHELL)) lower.slice(1).forEach((w) => { if (/^\d+$/.test(w)) pids.push(Number(w)); });
   }
   if (finder && killer) block('this finds processes by name or command line and stops them.');
+  for (const pid of pids) {
+    const why = notThisProject(pid, ctx.cwd);
+    if (why) { block(why); break; }
+  }
+}
+
+// ---------- whose process is it ----------
+
+export let KILL_IS_POWERSHELL = false;
+export const setKillIsPowershell = (v) => { KILL_IS_POWERSHELL = v; };
+let TABLE; // one look per hook run; the list of running programs does not change that fast for this purpose
+function processTable() {
+  if (TABLE !== undefined) return TABLE;
+  TABLE = null;
+  if (process.platform === 'win32') {
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress'],
+    { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+    try { TABLE = JSON.parse(r.stdout).map((p) => ({ pid: p.ProcessId, ppid: p.ParentProcessId, text: `${p.ExecutablePath || ''} ${p.CommandLine || ''}` })); } catch {}
+  } else {
+    const r = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,args='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (r.status === 0) TABLE = r.stdout.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean).map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), text: m[3] }));
+  }
+  return TABLE;
+}
+
+// A stop by process ID is fine when that process, or a program it started,
+// runs from this project's folder: a wrangler server runs node_modules/wrangler.
+// Anything else belongs to another project or another AI session.
+function notThisProject(pid, cwd) {
+  const table = processTable();
+  if (!table) return `could not list the running programs, so there is no way to tell whether process ${pid} belongs to this project.`;
+  const me = table.find((p) => p.pid === pid);
+  if (!me) return null; // nothing to stop
+  const top = git(cwd, ['rev-parse', '--show-toplevel']).out.trim() || cwd;
+  const norm = (s) => s.replace(/\\/g, '/').toLowerCase();
+  const root = norm(toPath(top)).replace(/\/$/, '') + '/';
+  const tree = [me];
+  for (let k = 0; k < tree.length && k < 500; k++) tree.push(...table.filter((p) => p.ppid === tree[k].pid && p.pid !== tree[k].pid && !tree.includes(p)));
+  if (tree.some((p) => norm(p.text).includes(root))) return null;
+  const what = me.text.trim().replace(/\s+/g, ' ').slice(0, 160);
+  return `process ${pid} does not run from this project (${what}). It may be another project's server or another AI session.`;
 }
 
 function checkSecretRead(words, found) {
@@ -426,7 +505,7 @@ export function analyze(command, cwd = process.cwd(), depth = 0) {
       if (r) found.push({ ...r, reason: `${r.reason} (inside the package script it runs: ${script})` });
     }
   }
-  checkProcesses(segs, found);
+  checkProcesses(segs, ctx, found);
   const live = found.filter((f) => !bypassed(f.guard));
   return live.find((f) => f.decision === 'block') || live.find((f) => f.decision === 'ask') || null;
 }
@@ -445,6 +524,7 @@ function main() {
   const codex = process.argv.includes('--codex');
   let input = {};
   try { input = JSON.parse(readFileSync(0, 'utf8') || '{}'); } catch {}
+  setKillIsPowershell(codex || input.tool_name === 'PowerShell');
   let command = input.tool_input?.command;
   if (Array.isArray(command)) command = command.join(' ');
   if (typeof command !== 'string' || !command.trim()) process.exit(0);

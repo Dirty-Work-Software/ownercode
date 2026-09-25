@@ -3,6 +3,7 @@ dist/
 .astro/
 .wrangler/
 node_modules/
+.pnpm-store/
 
 # secrets: never commit. Templates are named env.example and
 # dev.vars.example (no leading dot), so these lines never hide them.

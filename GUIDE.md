@@ -156,7 +156,7 @@ Most of this involves accounts, passwords, or payment. You must do those parts. 
 1. **Git for Windows** (git-scm.com). Do this before anything else. Take all defaults. Both tools use git to download the plugin. It also gives you "Git Bash," the shell Claude Code runs commands in.
 2. **Pick your tool.** One of these:
    - **Claude.** Get a Pro or Max subscription at claude.ai. Max is worth it once you use it daily; Pro hits limits fast. Then get the **Claude desktop app** (claude.ai/download). Open it, sign in, click the **Code** tab. That is Claude Code. There is also a terminal version; the app is easier to start with.
-   - **Codex.** Install Codex from OpenAI and sign in with a ChatGPT account whose plan includes Codex. If you are not sure which install to pick, search "OpenAI Codex install" and use the page on openai.com.
+   - **Codex.** Install Codex from OpenAI and sign in with a ChatGPT account whose plan includes Codex. On Windows, OpenAI's page `learn.chatgpt.com/docs/windows/windows-app` names the install to use. On Windows, read "Codex on Windows" below first.
 3. **Install the Ownercode plugin.** It comes from the public GitHub repo `Dirty-Work-Software/ownercode`.
    - **Claude Code:** in a session, type `/plugin marketplace add Dirty-Work-Software/ownercode`, then `/plugin install ownercode@ownercode`. In a terminal, the same thing is `claude plugin marketplace add Dirty-Work-Software/ownercode`, then `claude plugin install ownercode@ownercode`. In the desktop app, the plugin browser works too. Then turn on updates once: type `/plugin`, go to Marketplaces, pick ownercode, choose Enable auto-update.
    - **If a window asks you to sign in to Git or GitHub while this runs, close it.** Ownercode needs no account and no sign-in. The window comes from Git's sign-in helper, and it means the address has a typo or the repo cannot be reached. Check the spelling and try again.
@@ -169,11 +169,32 @@ Most of this involves accounts, passwords, or payment. You must do those parts. 
 
 Then: make an empty folder with a short path, for example `C:\Projects\my-app`. Not inside Documents, Desktop, or OneDrive: on Windows, the local database cannot open from a deep folder. Open your tool in that folder (in the Claude app: Code tab, pick the folder) and paste Part 2, the start prompt.
 
-The start prompt runs two sessions. The first interviews you and writes the plan and the task list, on the big model. It builds nothing. It ends by telling you to start a new session, pick Sonnet, and paste one line. The second session builds the first page, puts it live, and tests the guards.
+The start prompt runs two sessions. The first interviews you and writes the plan and the task list, on the big model. It builds nothing. It ends by telling you to start a new session, pick the smaller model it names, and paste one line. The second session builds the first page, puts it live, and tests the guards.
 
 The start prompt runs the Ownercode setup skill. It writes your project's own files: `AGENTS.md` (the rules), `CLAUDE.md` (the one line that points Claude Code at `AGENTS.md`), `docs/`, `tasks/`, `.gitignore`, each tool's settings (`.claude/settings.json` and `.codex/`), and a `.ownercode/` folder. That last one records what setup wrote, so updates can tell which files you changed.
 
 **The guard test.** The second session runs it for you, as the last check of its first task. To run it again at any time, paste this to the agent: "This is the Ownercode guard test and I approve it. Run `git commit --allow-empty --no-verify -m test` exactly once, with no prefix, and show me the result." It must be blocked. In Claude Code you will see a line starting `BLOCK:`. In Codex you will see a line starting `Command blocked by PreToolUse hook: BLOCK:`. If nothing blocks it, tell the agent "the Ownercode guards did not fire" and let it fix that before any other work. If the agent refuses to run it at all because its rules forbid the flag, that is fine too: the guards also check themselves at the start of every session.
+
+### Codex on Windows
+
+On Windows, Claude Code is the tool we tested end to end with this kit. If you use Codex on Windows, read this first.
+
+Codex runs each command inside a **sandbox**: a fence that lets it change only your project folder. On Windows, no sandbox kind could build this kit's apps in our tests (2026-09-24):
+- **Plain** (`unelevated`): in Codex 0.144.6 it refused every file edit. In Codex 0.156.1 file edits work, but every program that Node starts is refused (`spawn EPERM`), so the app cannot be created, and git cannot save work (the sandbox keeps the `.git` folder read-only).
+- **Elevated** (the kind OpenAI prefers): it needs an administrator "Yes" (a User Account Control window for `codex-windows-sandbox-setup.exe`) and makes two Windows accounts, `CodexSandboxOffline` and `CodexSandboxOnline`, and firewall rules. With more than one Codex on the computer (the app and the terminal), that window can come back again and again. Inside it, `pnpm` was not found, so nothing could be built.
+- **Full access** (`danger-full-access`, no sandbox) built the app, the login and the screens, with every check passing. It removes Codex's limits on files and network. The Ownercode guards still run (the guard test was blocked in that run), but nothing backs them up.
+
+So a Codex owner on Windows chooses between full access for this project's work and Claude Code. If you pick full access, set it in Codex's settings file, `%USERPROFILE%\.codex\config.toml` (open it in Notepad; make it if it is missing), then restart Codex:
+
+```
+sandbox_mode = "danger-full-access"
+```
+
+Put it on the first line of the file, above any line in square brackets (a line below `[something]` belongs to that section and does nothing here). If the file already has a `sandbox_mode` line, change it instead of adding a second one: Codex refuses a file with the same setting twice.
+
+**A box says `codex-windows-sandbox-setup.exe` and "The specified module could not be found".** The elevated sandbox's setup program failed to start. Your project and your Ownercode install are fine. Close it. OpenAI's own advice for this error: install the Microsoft Visual C++ Redistributable (x64), and update Codex. We saw the box once, with Codex 0.144.6; it did not come back in later tests, so we do not know which step fixes it.
+
+**"Permission denied" on `.git`, "pnpm not found", `spawn EPERM`, or "dubious ownership".** These are sandbox limits, not a broken install. The agent must say so, and must never fix them with a setting for the whole computer, such as `git config --global` (a guard blocks that).
 
 ### Let the agent use your browser
 
@@ -261,4 +282,4 @@ You still do not write code. That is the point.
 
 ## Last verified
 
-2026-09-23, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6: plugin install, update, setup, sync and a guard block were run in both tools. The Claude Code facts in sections 2, 3 and 3a (permission modes, the mode selector, the usage ring, rewind, the starting model, effort levels, fast mode and Fable billing) were checked against code.claude.com on the same date; the model facts are also in `docs/versions.md`. Command names and menu paths can change; if one fails, ask the agent to read the tool's current docs.
+2026-09-24, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6 (and 0.156.1 for the sandbox): plugin install, update, setup, sync and a guard block were run in both tools. "Codex on Windows": each sandbox kind was run with a throwaway Codex settings folder (git, pnpm, the admin window, the error box), and the second re-run's Codex build ran in the plain sandbox on 0.144.6 and 0.156.1 (both blocked) and in full access (built through the login task). OpenAI's pages on the Windows sandbox and the config file were read on the same date. The Claude Code facts in sections 2, 3 and 3a (permission modes, the mode selector, the usage ring, rewind, the starting model, effort levels, fast mode and Fable billing) were checked against code.claude.com on the same date; the model facts are also in `docs/versions.md`. Command names and menu paths can change; if one fails, ask the agent to read the tool's current docs.

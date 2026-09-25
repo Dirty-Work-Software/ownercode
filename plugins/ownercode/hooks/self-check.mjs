@@ -87,7 +87,7 @@ try {
 }
 
 // Everything above lives in the plugin's own files, which an update replaces.
-const pluginFix = problems.length ? 'These are in the Ownercode plugin\'s own files, so do not edit them. Update the plugin, then restart. Claude Code: claude plugin update ownercode@ownercode. Codex: codex plugin marketplace upgrade ownercode. If it stays broken, reinstall the plugin.' : '';
+const pluginFix = problems.length ? 'These are in the Ownercode plugin\'s own files, so do not edit them. Update the plugin, then restart. Use the marketplace where you installed Ownercode. Claude Code: update that marketplace and its Ownercode plugin. Codex: upgrade that marketplace. If it stays broken, reinstall the plugin.' : '';
 
 // 4. The project this session runs in. Not when run by hand from the kit repo.
 const git = (dir, ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', windowsHide: true });
@@ -103,8 +103,13 @@ if (!byHand) {
     const wide = (s.permissions?.allow || []).filter((r) => ['Bash', 'Bash(*)', 'Bash(node *)', 'Bash(pnpm exec *)', 'Bash(npx *)', 'Bash(npx wrangler *)', 'Bash(pnpm dlx *)'].includes(r));
     if (wide.length) notes.push(`${f} allows ${wide.join(', ')} with no question. That lets the agent run any code, past the deny list. Remove ${wide.length > 1 ? 'those lines' : 'that line'}.`);
   }
+  // A new folder has no settings file until the setup skill writes one, so
+  // the tool is on in the first session by design: say only that.
   if (!codex && process.platform === 'win32' && process.env.CLAUDE_CODE_USE_POWERSHELL_TOOL !== '0') {
-    notes.push('The PowerShell tool is on. The guards still watch it, but the deny list in .claude/settings.json (rm -rf, reading .env) does not. Add "env": { "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0" } to .claude/settings.json, then restart. If that line is already there, the variable is set to 1 in the terminal or program that starts Claude Code, which wins over the settings file; remove it there.');
+    const inFile = readJson(join(project, '.claude/settings.json'))?.env?.CLAUDE_CODE_USE_POWERSHELL_TOOL;
+    if (!existsSync(join(project, '.claude/settings.json'))) notes.push('For your information: the PowerShell tool is on in this session. The Ownercode setup turns it off for this project. Restart after setup.');
+    else if (String(inFile) === '0') notes.push('The PowerShell tool is on although .claude/settings.json turns it off. So CLAUDE_CODE_USE_POWERSHELL_TOOL is set to 1 outside this project, in the terminal or program that starts Claude Code, and that wins. The guards still watch the tool, but the deny list (rm -rf, reading .env) does not. Tell the owner, once, to remove that variable there and restart.');
+    else notes.push('The PowerShell tool is on, and .claude/settings.json does not turn it off. The guards still watch the tool, but the deny list (rm -rf, reading .env) does not. With the owner\'s yes, add "env": { "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0" } to .claude/settings.json, then restart.');
   }
 
   // A new repo made with plain `git init` is on master, and the kit's steps

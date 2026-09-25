@@ -12,10 +12,10 @@
 // A block the owner would not expect is a failure too: a guard that blocks
 // normal work gets switched off, which is the same as having none.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { analyze, isSecretPath } from './guards.mjs';
 
@@ -201,11 +201,33 @@ export const CASES = [
   [B, 'clean', "ps aux | grep wrangler | awk '{print $2}' | xargs kill"],
   [B, 'clean', 'wmic process where "name=\'node.exe\'" delete'],
   [B, 'clean', 'powershell -Command "Get-Process node | Stop-Process"'],
-  [A, 'clean', 'kill 12345'],
-  [A, 'clean', 'taskkill /PID 12345 /T /F'],
-  [A, 'clean', 'Stop-Process -Id 12345'],
+  [A, 'clean', 'kill 99999999'], // 99999999 is never a real process ID, so there is nothing to check
+  [A, 'clean', 'taskkill /PID 99999999 /T /F'],
+  [A, 'clean', 'Stop-Process -Id 99999999'],
+  // Git Bash spelling (2026-09-24 re-run: //PID was blocked as if it were /IM)
+  [A, 'clean', 'taskkill //T //F //PID 99999999'],
+  [A, 'clean', 'cmd.exe /C "taskkill /T /F /PID 99999999"'],
+  [B, 'clean', 'taskkill //IM node.exe //F'],
+  [B, 'clean', 'taskkill //F //IM node.exe'],
+  [B, 'clean', 'cmd //c "taskkill /F /IM node.exe"'],
   [A, 'clean', 'ps aux'],
   [A, 'clean', 'npx kill-port 8788'],
+  // global-config (2026-09-24 re-run: a builder ran this on the owner's computer, unasked)
+  [B, 'clean', 'git config --global --add safe.directory C:/Scratch/app'],
+  [B, 'clean', 'git config --global user.name x'],
+  [B, 'clean', 'git config --system core.autocrlf true'],
+  [B, 'clean', 'git config --global --unset-all safe.directory'],
+  [B, 'clean', 'git config set --global user.email a@example.com'],
+  [B, 'clean', 'git config --global --edit'],
+  [B, 'clean', 'bash -c "git config --global --add safe.directory *"'],
+  [B, 'clean', 'git -C sub config --global core.editor vim'],
+  [A, 'clean', 'git config --global user.name'],
+  [A, 'clean', 'git config --global --get user.name'],
+  [A, 'clean', 'git config --global -l'],
+  [A, 'clean', 'git config get --global user.name'],
+  [A, 'clean', 'git config user.name x'],
+  [A, 'clean', 'git -c safe.directory=C:/Scratch/app status'],
+  [A, 'clean', 'git commit -m "never run git config --global --add safe.directory"'],
   // messages and text are not commands
   [A, 'clean', 'git commit -m "docs: explain --no-verify"'],
   [A, 'clean', 'git commit -m "support the -n flag"'],
@@ -273,12 +295,40 @@ export function makeRepos(root) {
   return repos;
 }
 
+// Whose program is it (2026-09-24 re-run: a builder tried to stop the other
+// project's server by its number). Two real programs: a "server" that runs from
+// the clean repo, and a parent outside every repo that started a copy of it.
+// Stopping either is fine from the clean repo and blocked from another one.
+function startPrograms(root, repos) {
+  writeFileSync(join(repos.clean, 'server.cjs'), 'setTimeout(() => {}, 60000);\n');
+  writeFileSync(join(root, 'parent.cjs'), "const c = require('child_process').spawn(process.execPath, [process.env.CHILD], { stdio: 'ignore' }); require('fs').writeFileSync(process.env.READY, String(c.pid)); setTimeout(() => {}, 60000);\n");
+  const ready = join(root, 'ready');
+  const own = spawn(process.execPath, [join(repos.clean, 'server.cjs')], { stdio: 'ignore', windowsHide: true });
+  const parent = spawn(process.execPath, [join(root, 'parent.cjs')], { stdio: 'ignore', windowsHide: true, env: { ...process.env, CHILD: join(repos.clean, 'server.cjs'), READY: ready } });
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  for (let k = 0; k < 100 && !existsSync(ready); k++) Atomics.wait(pause, 0, 0, 50);
+  Atomics.wait(pause, 0, 0, 200);
+  const pids = [own.pid, parent.pid, Number(existsSync(ready) ? readFileSync(ready, 'utf8') : 0)].filter(Boolean);
+  const stop = process.platform === 'win32' ? (pid) => `taskkill //T //F //PID ${pid}` : (pid) => `kill ${pid}`;
+  const cases = [
+    [A, 'clean', stop(own.pid)],
+    [B, 'dirty', stop(own.pid)],
+    [A, 'clean', stop(parent.pid)],
+    [B, 'dirty', stop(parent.pid)],
+  ];
+  if (process.platform === 'win32') cases.push([B, 'dirty', `cmd.exe /C "taskkill /T /F /PID ${own.pid}"`], [B, 'dirty', `Stop-Process -Id ${own.pid}`]);
+  return { cases, end: () => { for (const pid of pids) { try { process.kill(pid); } catch {} } } };
+}
+
 export function runCases() {
   const root = mkdtempSync(join(tmpdir(), 'ownercode-guards-'));
   const results = [];
+  let programs;
   try {
     const repos = makeRepos(root);
-    for (const [expect, state, command] of CASES) {
+    // Before any case runs: the guard reads the list of running programs once.
+    programs = startPrograms(root, repos);
+    for (const [expect, state, command] of [...CASES, ...programs.cases]) {
       let got;
       try { got = analyze(command, repos[state])?.decision || A; } catch (e) { got = `crash: ${e.message}`; }
       const verdict = got === expect ? 'ok' : expect === A ? 'FALSE BLOCK' : (got === A ? 'HOLE' : 'WRONG KIND');
@@ -287,7 +337,11 @@ export function runCases() {
     for (const [p, want] of [['.env', true], ['sub/.env.local', true], ['.dev.vars', true], ['gcp-service-account.json', true], ['.env.example', false], ['env.example', false], ['src/env.ts', false]]) {
       if (isSecretPath(p) !== want) results.push({ verdict: want ? 'HOLE' : 'FALSE BLOCK', expect: want ? B : A, got: want ? A : B, state: '-', command: `isSecretPath(${p})` });
     }
-  } finally { rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    programs?.end();
+    // Windows keeps a stopped program's folder locked for a moment.
+    for (let k = 0; k < 20; k++) { try { rmSync(root, { recursive: true, force: true }); break; } catch { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } }
+  }
   return results;
 }
 

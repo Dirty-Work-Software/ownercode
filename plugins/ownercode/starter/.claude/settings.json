@@ -39,6 +39,8 @@
       "Bash(rm -f*)",
       "Bash(rm --recursive*)",
       "Bash(rm --force*)",
+      "Bash(rm *.wrangler*)",
+      "Bash(rm *.sqlite*)",
       "PowerShell(Remove-Item *)"
     ],
     "deny": [

@@ -63,9 +63,12 @@ Write `docs/plan-v1.md` with:
 
 Then also write a short `## In Plain English` section at the top for someone who does not code.
 
-Then turn the plan into task files. Read `tasks/README.md`. Create one task per screen, one per endpoint group, one for the schema migration, one for auth if in scope, and one `config` task for each thing I must do myself, including every outside account from the plan. A task that brings in my real customer data says the file goes in the `imports/` folder, which git never saves. Number them in build order, set `depends_on` so nothing can be picked before what it needs, and give every task an `## In Plain English` block.
+Then turn the plan into task files. Read `tasks/README.md`. Create one task per screen, one per endpoint group, one for the schema migration, one for auth if in scope, and one `config` task for each thing I must do myself, including every outside account from the plan. A task that brings in my real customer data says the file goes in the `imports/` folder, which git never saves. Number them in build order, set `depends_on` so nothing can be picked before what it needs, and give every task an `## In Plain English` block and an `## Owner rules` block: my answers that the task must follow, copied word for word (prices, what a button charges, schedules, who sees what), or "none". Put app work before the `config` tasks, so the building never waits on my accounts.
 
-Task 001 is "Set up the project and put a first page live". Its description says: follow "Start a new project" in `docs/astro-cloudflare-conventions.md`, step by step. Copy the steps' checks into its acceptance criteria: the app at the project root, build, typecheck, unit and smoke tests pass, the smoke test sees the page's live part show the server's answer, `pnpm run deploy:check` passes, the live URL works, the guard test is blocked.
+- The schema task also writes `seed/demo.sql`, a few invented rows for each main record type, loaded with `pnpm run db:seed` into the local database only (see "Demo data" in `docs/astro-cloudflare-conventions.md`). So I see a working app before my real data is in.
+- The login task, if login is in scope, follows "Login (Better Auth)" in `docs/astro-cloudflare-conventions.md`: sign-up is off, my account comes from `pnpm run owner <my email>`, and a smoke test proves a stranger cannot sign up. Its last criterion is exactly: "The owner has signed in locally, from the home page's link, and sees the demo data." It is closed only when I say I have.
+
+Task 001 is "Set up the project and put a first page live". Its description says: follow "Start a new project" in `docs/astro-cloudflare-conventions.md`, step by step. Copy the steps' checks into its acceptance criteria: the app at the project root, this project's own port, build, typecheck, unit and smoke tests pass, the smoke test sees the page's live part show the server's answer, the home page links to the app, `pnpm run deploy:check` passes, the live URL works, the guard test is blocked.
 
 Show me the plan and the task list: id, title, one plain line each. Ask me every open question from the plan now, not later. Then ask whether to proceed, change something, or start over.
 
@@ -77,7 +80,7 @@ Once I say go:
 3. In place of the handoff skill's usual ending, end your reply with exactly this, filled in:
 
 > **Session 1 is done.** The plan is saved, and nothing is built yet.
-> Next: start a new session in this same folder. Pick **Sonnet** in the model picker next to the message box (in Codex: type `/model` and pick a smaller model than this one). Then paste this line:
+> Next: start a new session in this same folder. <Claude Code: Pick **Sonnet** in the model picker next to the message box. Codex: Type `/model` and pick <the Codex build model named in `docs/versions.md`>. Write only the line for the tool you run in.> Then paste this line:
 > ```
 > Read docs/handoff-next.md and continue.
 > ```
@@ -100,4 +103,4 @@ Begin: set up the folder, then start the interview.
 
 ## Last verified
 
-2026-09-23, with Claude Code 2.1.159 and Codex CLI 0.144.6: the skill names and the start-of-session messages above. The build steps it points to were run on this date (see the Last verified line in `docs/astro-cloudflare-conventions.md`). If a skill name does not work, list the Ownercode skills your tool shows and use the matching one.
+2026-09-24, with Claude Code 2.1.159 and Codex CLI 0.144.6: the skill names and the start-of-session messages above, and the build sessions from a plan this prompt wrote (the second re-run). The build steps it points to were run on this date (see the Last verified line in `docs/astro-cloudflare-conventions.md`). If a skill name does not work, list the Ownercode skills your tool shows and use the matching one.
