@@ -680,7 +680,7 @@ test('home page island runs and shows the server result', async ({ page }) => {
 ## D1
 
 - Migrations in `migrations/NNNN_name.sql`. `npx wrangler d1 migrations apply DB --local` for dev, `--remote` for production.
-- Never edit an applied migration. Add a new one.
+- Never edit an applied migration. Add a new one. A committed migration counts as applied: the migration guard blocks a commit that changes, renames or deletes one. Never delete `.wrangler/state` to re-run a migration; it holds the owner's local data.
 - On Windows, `--local` fails from a deep project folder. The error reads `SQLITE_CANTOPEN` / `unable to open database file`, or only `internal error; reference = ...`. Nothing in it mentions the path. Fix: move the project to a short folder, such as `C:\Projects\<name>`. The Ownercode plugin's self-check warns at session start. The measured limit is in `docs/versions.md`.
 - Use `prepare().bind()` for every value. Never string-concatenate SQL.
 - Batch related writes with `env.DB.batch([...])` for atomicity.

@@ -23,7 +23,9 @@ const B = 'block', A = 'allow', Q = 'ask';
 
 // [expect, state, command]. States: clean (main, no edits), dirty (main, an
 // unsaved edit to a tracked file), feature (branch feat, dirty), ahead (main
-// one commit ahead of origin/main, dirty), staged (.env force-staged).
+// one commit ahead of origin/main, dirty), staged (.env force-staged),
+// migedit (committed migration edited, not staged; src/app.ts staged),
+// migstaged (that edit staged), mignew (a new migration staged), migmv (renamed).
 export const CASES = [
   // no-verify
   [B, 'clean', 'git commit --no-verify -m x'],
@@ -251,6 +253,17 @@ export const CASES = [
   [A, 'dirty', 'git checkout -b wip'],
   [A, 'clean', 'git commit -m "fix: handle --force and -f flags"'],
   [A, 'clean', 'ls -la && pnpm run test'],
+  // migration: a committed migration is applied; the next migration fixes it (2026-09-24 re-run, task 002)
+  [B, 'migstaged', 'git commit -m "fix schema"'],
+  [B, 'migstaged', 'bash -c "git commit -m x"'],
+  [B, 'migedit', 'git commit -am "fix schema"'],
+  [B, 'migedit', 'git commit migrations/0001_init.sql -m x'],
+  [B, 'migmv', 'git commit -m "renumber"'],
+  [A, 'migedit', 'git commit -m "other work"'],
+  [A, 'mignew', 'git commit -m "add a table"'],
+  [A, 'migstaged', 'git stash push -m "keep it" -- migrations/0001_init.sql'],
+  [A, 'migstaged', 'BYPASS_MIGRATION_GUARD=1 git commit -m x'],
+  [A, 'clean', 'git commit -am "nothing in migrations"'],
 ];
 
 const sh = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
@@ -272,6 +285,7 @@ export function makeRepos(root) {
     'package.json': JSON.stringify({ scripts: { build: 'astro build', deploy: 'pnpm run build && wrangler deploy', 'deploy:check': 'pnpm run build && wrangler deploy --dry-run' } }),
     'seed.sql': 'INSERT INTO contacts (name) VALUES (\'a\');\n',
     'wipe.sql': '-- clear it\nDELETE FROM contacts;\n',
+    'migrations/0001_init.sql': 'CREATE TABLE contacts (id INTEGER PRIMARY KEY);\n',
   };
   for (const [f, text] of Object.entries(files)) { mkdirSync(join(base, f, '..'), { recursive: true }); writeFileSync(join(base, f), text); }
   sh(base, 'init', '-q', '-b', 'main');
@@ -283,13 +297,18 @@ export function makeRepos(root) {
   for (const f of ['.env', '.dev.vars', 'customers.csv', 'sub/.env.local']) writeFileSync(join(base, f), 'SECRET=not-a-real-key\n');
   const repos = {};
   const edit = (d) => writeFileSync(join(d, 'src/app.ts'), 'export const x = 2;\n');
-  for (const state of ['clean', 'dirty', 'feature', 'ahead', 'staged']) {
+  const mig = (d) => writeFileSync(join(d, 'migrations/0001_init.sql'), 'CREATE TABLE contacts (id INTEGER PRIMARY KEY, name TEXT);\n');
+  for (const state of ['clean', 'dirty', 'feature', 'ahead', 'staged', 'migedit', 'migstaged', 'mignew', 'migmv']) {
     const d = join(root, state);
     cpSync(base, d, { recursive: true });
     if (state === 'dirty') edit(d);
     if (state === 'feature') { sh(d, 'checkout', '-q', 'feat'); edit(d); }
     if (state === 'ahead') { writeFileSync(join(d, 'sub/x.txt'), 'y\n'); sh(d, 'commit', '-qam', 'ahead'); edit(d); }
     if (state === 'staged') sh(d, 'add', '-f', '.env');
+    if (state === 'migedit') { mig(d); edit(d); sh(d, 'add', 'src/app.ts'); }
+    if (state === 'migstaged') { mig(d); sh(d, 'add', 'migrations'); }
+    if (state === 'mignew') { writeFileSync(join(d, 'migrations/0002_notes.sql'), 'CREATE TABLE notes (id INTEGER PRIMARY KEY);\n'); sh(d, 'add', 'migrations'); }
+    if (state === 'migmv') sh(d, 'mv', 'migrations/0001_init.sql', 'migrations/0002_init.sql');
     repos[state] = d;
   }
   return repos;
@@ -345,8 +364,34 @@ export function runCases() {
   return results;
 }
 
+// The session-start check must tell an update apart from a break (2026-09-24
+// trial: Codex swapped the plugin folder while the check ran, and it said
+// "reinstall"). Not in runCases, because self-check.mjs runs runCases.
+function selfCheckCases() {
+  const root = mkdtempSync(join(tmpdir(), 'ownercode-swap-'));
+  const plugin = join(fileURLToPath(import.meta.url), '..', '..');
+  const say = (dir) => spawnSync(process.execPath, [join(dir, 'hooks', 'self-check.mjs'), '--codex'], { cwd: root, input: '{}', encoding: 'utf8', windowsHide: true }).stdout;
+  const out = [];
+  try {
+    // Swapped: the old version folder lost everything but the running check; a new one sits next to it.
+    const old = join(root, 'ownercode', '0.2.1');
+    mkdirSync(join(old, 'hooks'), { recursive: true });
+    cpSync(join(plugin, 'hooks', 'self-check.mjs'), join(old, 'hooks', 'self-check.mjs'));
+    mkdirSync(join(root, 'ownercode', '0.2.2'));
+    const swap = say(old);
+    if (!/GUARDS ARE OFF UNTIL A RESTART/.test(swap) || !/to 0\.2\.2/.test(swap) || /problem\(s\)/.test(swap)) out.push({ verdict: 'WRONG KIND', expect: 'restart message', got: swap.split('\n')[0], state: '-', command: 'self-check during a plugin update swap' });
+    // Broken: the whole plugin is there, but its guards file lets everything through.
+    const broken = join(root, 'broken');
+    cpSync(plugin, broken, { recursive: true });
+    writeFileSync(join(broken, 'hooks', 'guards.mjs'), 'export const analyze = () => null; export const isSecretPath = () => false;\n');
+    const brk = say(broken);
+    if (!/GUARDS ARE OFF OR BROKEN/.test(brk) || /UNTIL A RESTART/.test(brk)) out.push({ verdict: 'HOLE', expect: 'broken message', got: brk.split('\n')[0], state: '-', command: 'self-check with a broken guards file' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  return out;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const results = runCases();
+  const results = [...runCases(), ...selfCheckCases()];
   const bad = results.filter((r) => r.verdict !== 'ok');
   const show = process.argv.includes('--all') ? results : bad;
   for (const r of show) console.log(`${r.verdict}\t${r.state}\texpect ${r.expect}, got ${r.got}\t${r.command.replace(/\n/g, '\\n')}`);

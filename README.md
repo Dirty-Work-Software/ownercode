@@ -56,3 +56,5 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 Version 0.2.1: guard repair guidance uses the marketplace where Ownercode was installed, including a bundled distribution.
 
 Version 0.2.2: the start prompt asks how customers find you (competitors, their search words, your area), and every public page gets the search basics.
+
+Version 0.2.3: a new guard stops the agent from saving an edit to a database change that already ran; clearer steps when Codex's Windows sandbox blocks a build; closing a task asks you about every price or schedule the agent picked alone; a plain message when an update lands while a session starts.

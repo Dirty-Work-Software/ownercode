@@ -20,8 +20,8 @@
 // project's own hook (.ownercode/check-guards.mjs) looks for it: no heartbeat
 // means this plugin's hooks never ran, so the guards are off.
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, dirname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -137,8 +137,17 @@ if (!byHand) {
 }
 
 // 5. Report.
+// A tool installs a plugin update by swapping the version folder, and Codex
+// can do it at session start while this check runs from the old folder (seen
+// in a 2026-09-24 trial). Then every check fails at once. That is an update,
+// not a break, but this session's hooks may still point at the removed folder.
+const swapped = problems.length && !['.codex-plugin', '.claude-plugin'].some((d) => existsSync(join(PLUGIN, d, 'plugin.json')));
 const lines = [];
-if (problems.length) {
+if (swapped) {
+  let other = [];
+  try { other = readdirSync(dirname(PLUGIN)).filter((v) => v !== basename(PLUGIN)); } catch {}
+  lines.push(`OWNERCODE SAFETY GUARDS ARE OFF UNTIL A RESTART: Ownercode updated itself${other.length ? ` (to ${other.join(', ')})` : ''} while this session started, and removed the copy this session's guards run from (${PLUGIN}). This happens once after an update; nothing is broken. Tell the owner this first, in plain words, before any other work: close this session and start a new one. If this message comes back after the restart, the guards are really broken: update or reinstall the Ownercode plugin.`);
+} else if (problems.length) {
   lines.push(`OWNERCODE SAFETY GUARDS ARE OFF OR BROKEN: ${problems.length} problem(s). Tell the owner this first, in plain words, before any other work, and help fix it.`);
   for (const p of problems) lines.push(`- ${p}`);
   if (pluginFix) lines.push(pluginFix);

@@ -10,7 +10,7 @@
 // stderr, and an ask is a permission prompt. Codex: both are a "deny", because
 // on Windows Codex turns exit 2 into 1, which it treats as a failed hook.
 //
-// The eight guards, each with its own owner override. The agent adds the
+// The nine guards, each with its own owner override. The agent adds the
 // prefix only after the owner said yes to that exact command.
 //   no-verify   skipping git hooks                     BYPASS_NO_VERIFY_GUARD=1
 //   reset       reset --hard, checkout -f on edits      BYPASS_RESET_GUARD=1
@@ -21,6 +21,8 @@
 //   process     stopping programs by name, or another   BYPASS_PROCESS_GUARD=1
 //               project's program by its number
 //   global-config  git config for the whole computer   BYPASS_GLOBAL_CONFIG_GUARD=1
+//   migration   committing an edit to a committed       BYPASS_MIGRATION_GUARD=1
+//               (so applied) database migration
 //
 // A command can hide another one: `bash -c "..."`, `node -e "execSync('...')"`,
 // `pnpm exec git ...`, a full path to git, `cd sub && ...`, a package script.
@@ -42,6 +44,7 @@ const GUARDS = {
   secret: { bypass: 'BYPASS_SECRET_GUARD', advice: 'Never read, print or commit a secret file. To make a local secret, run: node .ownercode/dev-secret.mjs NAME. For a real key, tell the owner the exact line to add to .dev.vars in their own editor. To unstage: git restore --staged <file>.' },
   cloud: { bypass: 'BYPASS_CLOUD_GUARD', advice: 'This changes the live site or the live database. Tell the owner what you want to run and why, with the result of the local run (--local), the build and the tests.' },
   process: { bypass: 'BYPASS_PROCESS_GUARD', advice: 'Stop only a process ID that runs from this project (kill <PID>; in Git Bash taskkill //T //F //PID <PID>; Stop-Process -Id <PID>). A program from another folder belongs to another project or another AI session: tell the owner what holds the port, and use a different port instead.' },
+  migration: { bypass: 'BYPASS_MIGRATION_GUARD', advice: 'A committed migration has already run on this computer\'s database, and maybe on the live one. An edit to it never reaches a database that ran it. Set the edit aside, which also puts the file back as it was: git stash push -m "why" -- <the migration file>. Then put the change in a new migration with the next free number, and run pnpm run db:migrate.' },
   'global-config': { bypass: 'BYPASS_GLOBAL_CONFIG_GUARD', advice: 'This changes git for every project on this computer, not only this one. Use a setting for this project only (git config without --global, or git -c name=value <command>). If it is a sandbox limit, say so: the owner\'s install is fine.' },
 };
 
@@ -173,6 +176,7 @@ function pathsDirty(dir, paths) {
 const TEMPLATE = /\.(example|sample|template)$/i;
 const SECRET_FILE = /(^|[\/\\])(\.env(\.[\w.-]+)?|\.dev\.vars(\.[\w.-]+)?|[\w.-]*(credentials|service-account)[\w.-]*\.json|[\w.-]+\.pem|id_(rsa|ed25519|ecdsa))$/i;
 const SECRET_IN_TEXT = /(?:^|[\s'"`(=,:@\/\\])(\.env(?:\.[\w-]+)*|\.dev\.vars(?:\.[\w-]+)*|[\w.-]*(?:credentials|service-account)[\w.-]*\.json)(?=$|[\s'"`),;:\/\\])/gi;
+const MIGRATION = /(^|\/)migrations\/[^/]+\.sql$/i;
 const DATA_FILE = /(^|[\/\\])imports[\/\\]|\.(csv|tsv|xlsx|xls)$/i;
 export const isSecretPath = (p) => SECRET_FILE.test(p) && !TEMPLATE.test(p);
 // Commands that only name a file, never open it.
@@ -267,6 +271,14 @@ function checkGit(words, i, ctx, found) {
     files = files.concat(positional(['-F', '-C', '-c', '-t', '--author', '--date']));
     const secret = [...new Set(files.filter((f) => f && isSecretPath(f)))];
     if (secret.length) block('secret', `this commit would include secret files: ${secret.slice(0, 3).join(', ')}.`);
+    // migration: a committed migration file changed, deleted or renamed. With
+    // -a or paths, git commits the working copy, so compare that too.
+    const paths = positional(['-F', '-C', '-c', '-t', '--author', '--date']);
+    const worktree = has(args, '--all') || /a/.test(flags) || paths.length;
+    const changed = git(dir, ['diff', '--cached', '--name-status', '--diff-filter=MDR', 'HEAD']).out
+      + (worktree ? git(dir, ['diff', '--name-status', '--diff-filter=MDR', 'HEAD', '--', ...paths]).out : '');
+    const edited = [...new Set(changed.split('\n').map((l) => l.split('\t')[1]).filter((f) => f && MIGRATION.test(f)))];
+    if (edited.length) block('migration', `this commit changes a migration that is already committed: ${edited.slice(0, 3).join(', ')}.`);
   }
 }
 

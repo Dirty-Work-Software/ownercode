@@ -13,5 +13,6 @@ if (!id || existsSync(join(tmpdir(), `ownercode-guards-${id}`))) process.exit(0)
 
 console.log(`OWNERCODE SAFETY GUARDS ARE OFF in this session. The Ownercode plugin's hooks did not run.
 Tell the owner this first, in plain words, before any other work. Then help them fix it:
+- First, close this session and start a new one. Right after a plugin update, Codex can start a session with no Ownercode hooks, and a restart fixes that. If this message comes back:
 - Claude Code: run "claude plugin list" and check that ownercode@ownercode is enabled. If not: claude plugin enable ownercode@ownercode, then restart.
 - Codex: type /plugins and check that Ownercode is installed and enabled, then type /hooks and trust its hooks. Then restart.`);

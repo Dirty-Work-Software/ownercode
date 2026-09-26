@@ -40,21 +40,23 @@ The Ownercode guards (below) and the project's deny rules work in every mode.
 - When you correct the agent twice for the same thing, that is a skill or an `AGENTS.md` rule waiting to be written. Ask it to write one.
 
 **Hooks and permissions.** Two layers keep the agent safe.
-- **Guards** come from the plugin. A guard (a "hook") is a small program that checks a command before it runs and blocks it if it is dangerous. Both tools run the same seven guards. They block:
+- **Guards** come from the plugin. A guard (a "hook") is a small program that checks a command before it runs and blocks it if it is dangerous. Both tools run the same nine guards. They block:
   - skipping git's safety checks (`--no-verify`);
   - throwing away unsaved work (`git reset --hard`, `git restore`, `git clean -f`, `git branch -D`, `git stash drop`, and the like);
   - force-pushing over `main` on GitHub (a normal push is fine);
   - merging a pull request by command;
   - reading or committing secret files (`.env`, `.dev.vars`), and committing your customer spreadsheets;
   - destroying live data: deleting the live database or its tables, or deleting the live site;
-  - stopping programs by name, which can close other projects or the agent itself.
+  - stopping programs by name, which can close other projects or the agent itself;
+  - changing git settings for the whole computer (`git config --global`), which changes every project on it;
+  - saving an edit to a database change file (a "migration") that already ran; the agent writes a new one instead.
 
   Before a deploy, before storing a live secret, and before a live database change, the agent asks you first. When a guard blocks something you really do want, say so in chat; only then does the agent run it once more with your OK.
 - **Permissions** come from your project's settings (`.claude/settings.json` for Claude Code, the `.codex/` folder for Codex). They say what the agent may never do, such as read secret files or wipe out important folders with `rm -rf`. On Windows, they also switch off Claude Code's PowerShell tool, so every command goes through Bash, where both the guards and these rules apply. Nothing you need is lost: Git Bash runs everything the build needs.
 
-These came from real incidents. Keep them. A guard is the difference between "please check your work" and "the command fails if you did not." The guards check themselves when a session starts. If they are not running, you will see `OWNERCODE SAFETY GUARDS ARE OFF`. In Codex, a healthy session also says `Ownercode safety guards: on.`
+These came from real incidents. Keep them. A guard is the difference between "please check your work" and "the command fails if you did not." The guards check themselves when a session starts. If they are not running, you will see `OWNERCODE SAFETY GUARDS ARE OFF`. Once, right after a plugin update, you may see `OWNERCODE SAFETY GUARDS ARE OFF UNTIL A RESTART`. Close the session and start a new one. If it shows again, the guards are really broken. In Codex, a healthy session also says `Ownercode safety guards: on.`
 
-**What Codex does not cover.** Codex runs the same seven guards as Claude Code. You get less protection in four places:
+**What Codex does not cover.** Codex runs the same nine guards as Claude Code. You get less protection in four places:
 - The guards are off until you trust them once in `/hooks` (section 5). A plugin update that changes the Codex hook file may ask you to trust it again.
 - Codex cannot pause a command to ask you. So a deploy, a `secret put` or a change to the live database is stopped instead, and the agent must ask you in chat. On your yes, it runs the same command again with `BYPASS_CLOUD_GUARD=1` in front.
 - The guards stop a command that names a secret file, such as `cat .env` or `Get-Content .env`. Nothing stops a read that does not name it, such as a search over the whole folder or a script that opens the file itself. Claude Code has one more rule, for its own file reader; Codex has none. Ownercode relies on `.gitignore` and the rule in `AGENTS.md` for the rest.
