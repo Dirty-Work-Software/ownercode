@@ -386,6 +386,21 @@ function selfCheckCases() {
     writeFileSync(join(broken, 'hooks', 'guards.mjs'), 'export const analyze = () => null; export const isSecretPath = () => false;\n');
     const brk = say(broken);
     if (!/GUARDS ARE OFF OR BROKEN/.test(brk) || /UNTIL A RESTART/.test(brk)) out.push({ verdict: 'HOLE', expect: 'broken message', got: brk.split('\n')[0], state: '-', command: 'self-check with a broken guards file' });
+    // The project's check before each command (2026-09-25, Codex 0.144.6: the
+    // session started on the old copy, the update removed it, and the command
+    // guard let git commit --no-verify through). The heartbeat names the copy.
+    const pre = (content) => {
+      const id = `swaptest-${process.pid}-${Math.random().toString(36).slice(2)}`;
+      const beat = join(tmpdir(), `ownercode-guards-${id}`);
+      if (content !== null) writeFileSync(beat, content);
+      try {
+        return spawnSync(process.execPath, [join(plugin, 'starter', '.ownercode', 'check-guards.mjs'), '--pre'], { input: JSON.stringify({ session_id: id }), encoding: 'utf8', windowsHide: true }).stdout;
+      } finally { rmSync(beat, { force: true }); }
+    };
+    for (const [content, want, what] of [[old, true, 'the copy the session started on is gone'], [plugin, false, 'the copy is there'], ['', false, 'an older heartbeat with no folder'], [null, false, 'no heartbeat (the prompt check reports that)']]) {
+      const denied = /"permissionDecision":"deny"/.test(pre(content));
+      if (denied !== want) out.push({ verdict: want ? 'HOLE' : 'FALSE BLOCK', expect: want ? B : A, got: denied ? B : A, state: '-', command: `check-guards --pre: ${what}` });
+    }
   } finally { rmSync(root, { recursive: true, force: true }); }
   return out;
 }

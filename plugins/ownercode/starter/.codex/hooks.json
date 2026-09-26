@@ -2,6 +2,9 @@
   "hooks": {
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "node .ownercode/check-guards.mjs", "timeout": 10 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "node .ownercode/check-guards.mjs --pre", "timeout": 10 } ] }
     ]
   }
 }

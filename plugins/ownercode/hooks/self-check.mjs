@@ -18,7 +18,9 @@
 //
 // It also leaves a heartbeat named by the session id in the temp folder. The
 // project's own hook (.ownercode/check-guards.mjs) looks for it: no heartbeat
-// means this plugin's hooks never ran, so the guards are off.
+// means this plugin's hooks never ran, so the guards are off. It holds this
+// plugin's folder: if an update removes that folder mid-session, the project
+// hook stops each command until a restart.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
@@ -33,7 +35,7 @@ const byHand = process.argv.includes('--check');
 
 let input = {};
 if (!byHand && !process.stdin.isTTY) { try { input = JSON.parse(readFileSync(0, 'utf8') || '{}'); } catch {} }
-if (input.session_id) { try { writeFileSync(join(tmpdir(), `ownercode-guards-${input.session_id}`), ''); } catch {} }
+if (input.session_id) { try { writeFileSync(join(tmpdir(), `ownercode-guards-${input.session_id}`), PLUGIN); } catch {} }
 
 const problems = []; // the guards are not protecting this session
 const notes = [];    // true, and the owner should hear it

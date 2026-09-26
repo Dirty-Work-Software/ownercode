@@ -58,3 +58,5 @@ Version 0.2.1: guard repair guidance uses the marketplace where Ownercode was in
 Version 0.2.2: the start prompt asks how customers find you (competitors, their search words, your area), and every public page gets the search basics.
 
 Version 0.2.3: a new guard stops the agent from saving an edit to a database change that already ran; clearer steps when Codex's Windows sandbox blocks a build; closing a task asks you about every price or schedule the agent picked alone; a plain message when an update lands while a session starts.
+
+Version 0.2.4: in Codex, when a later update lands during a session, each command stops with a message to restart, so no command runs unchecked.
