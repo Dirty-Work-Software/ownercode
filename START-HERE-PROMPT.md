@@ -39,7 +39,7 @@ Ask with your question tool (in Claude Code it is AskUserQuestion). If it errors
 
 1. Website, business software, or both. If both, which first.
 2. What my business does, in one sentence, and who my customers are.
-3. For the website: what a visitor should do (call, fill a form, book, buy). How many pages, roughly. Do I have a domain, a logo, brand colors, existing copy or photos.
+3. For the website: what a visitor should do (call, fill a form, book, buy). How many pages, roughly. Do I have a domain, a logo, brand colors, existing copy or photos. How people find me: my two or three main competitors (names or websites); the exact words a customer would type into Google, or ask an AI assistant, to find a business like mine; and the towns or area I serve.
 4. For the software: who uses it (just me, a team, customers too). What a "record" is for me (a person, a company, a job, a booking, a membership, a property, a lead). What I do with a record every day: the three or four actions that matter most. Where the data lives today (spreadsheet, another system, notebook, nowhere). Whether I need to import it.
 5. What "done for version one" means to me: the one screen I would show a friend.
 6. Login: do I need it in version one. Who logs in. Before I pick a login method, name every outside account, key or monthly cost each option needs (an email company for login links, for example).
@@ -59,12 +59,14 @@ Write `docs/plan-v1.md` with:
 - The API endpoints version one needs, one line each.
 - Every outside account, key or monthly cost version one needs.
 - What is explicitly NOT in version one.
+- Search, if there is a website: the customer's phrases in their own words, which page answers each, the service area, and the competitors I named.
 - Open questions you still have.
 
 Then also write a short `## In Plain English` section at the top for someone who does not code.
 
 Then turn the plan into task files. Read `tasks/README.md`. Create one task per screen, one per endpoint group, one for the schema migration, one for auth if in scope, and one `config` task for each thing I must do myself, including every outside account from the plan. A task that brings in my real customer data says the file goes in the `imports/` folder, which git never saves. Number them in build order, set `depends_on` so nothing can be picked before what it needs, and give every task an `## In Plain English` block and an `## Owner rules` block: my answers that the task must follow, copied word for word (prices, what a button charges, schedules, who sees what), or "none". Put app work before the `config` tasks, so the building never waits on my accounts.
 
+- Every public page task follows "Search basics" in `docs/astro-cloudflare-conventions.md`, and names the customer phrase that page answers.
 - The schema task also writes `seed/demo.sql`, a few invented rows for each main record type, loaded with `pnpm run db:seed` into the local database only (see "Demo data" in `docs/astro-cloudflare-conventions.md`). So I see a working app before my real data is in.
 - The login task, if login is in scope, follows "Login (Better Auth)" in `docs/astro-cloudflare-conventions.md`: sign-up is off, my account comes from `pnpm run owner <my email>`, and a smoke test proves a stranger cannot sign up. Its last criterion is exactly: "The owner has signed in locally, from the home page's link, and sees the demo data." It is closed only when I say I have.
 

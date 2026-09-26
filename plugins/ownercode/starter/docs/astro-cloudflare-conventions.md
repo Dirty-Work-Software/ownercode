@@ -717,12 +717,89 @@ async function ask(env: Env, use: string, prompt: string, model = 'claude-sonnet
 
 Every call has: a named `use` (for logging), a model choice, a timeout, and a caller that handles failure (show "AI unavailable," not a crash). Log each call's use, model, and token counts to a D1 table so cost is visible. For structured output, ask for JSON and validate it; do not trust the shape.
 
+## Search basics (every public page)
+
+What the owner gets: people who search for what they sell, in Google or by asking an AI assistant, can find and understand their site. It uses what the interview collected: the words customers type, the service area, and the competitors (see "Search" in `docs/plan-v1.md`). It promises no ranking. Deeper work (studying competitors' sites, a keyword map, a plan for AI answers) is a separate job this kit does not do.
+
+1. **One page, one customer phrase.** Each public page answers one phrase from the plan. Its `<title>` and description use the customer's words, not the business's jargon. One `<h1>` per page, saying the same thing in plain words.
+2. **Answer first.** The first paragraph under the `<h1>` answers the phrase in one to three plain sentences: what, where, how to get it. Search engines often show it, and a short, direct answer is the kind of passage AI assistants can quote (not guaranteed).
+3. **A short FAQ** on the home page or the main service page: three to six questions the owner said customers really ask, each answered in one to three sentences. No invented questions to fill space.
+4. **The same business facts everywhere:** name, phone, service area. Write them once (for example in `src/lib/business.ts`) and use that on every page. The owner's Google Business Profile and other listings must match; claiming them is the owner's `config` task.
+5. **Business facts for machines:** the home page carries a `LocalBusiness` block (JSON-LD) with only facts that are visible on the page. Never add ratings, reviews, prices, licences or offices the owner has not confirmed.
+6. **Private screens stay out:** `/app/` and `/login/` carry `noindex` and are left out of the sitemap.
+7. **The real address:** `site` in `astro.config.mjs` and the `Sitemap:` line in `public/robots.txt` stay `https://example.com` until the go-live task sets the owner's domain. Before go-live, `example.com` there is expected; at go-live it is a failure.
+
+`src/layouts/Base.astro` (every page uses it):
+
+```astro
+---
+import '../styles/global.css';
+interface Props { title: string; description?: string; noindex?: boolean; jsonLd?: object }
+const { title, description, noindex = false, jsonLd } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
+    {jsonLd && <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+```
+
+The home page passes the business facts. The values here are invented; use the owner's:
+
+```astro
+---
+import Base from '../layouts/Base.astro';
+const business = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  name: 'Maple Street Windows',
+  telephone: '555-0100',
+  areaServed: ['Springfield', 'Shelbyville'],
+  url: Astro.site?.href,
+};
+---
+<Base title="Window cleaning in Springfield | Maple Street Windows" description="Streak-free window cleaning for homes in Springfield and Shelbyville. Free quotes in one day." jsonLd={business}>
+  <h1>Window cleaning in Springfield</h1>
+  ...
+</Base>
+```
+
+The login page and every `/app/` page: `<Base title="Sign in" noindex>`.
+
+In `astro.config.mjs`, keep private screens out of the sitemap:
+
+```js
+// Private screens stay out of the sitemap (they also carry noindex).
+integrations: [preact(), sitemap({ filter: (page) => !/\/(app|login)\//.test(page) })],
+```
+
+`public/robots.txt`:
+
+```
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap-index.xml
+```
+
+The JSON-LD block is data, not a script the browser runs, so the page's script policy does not block it (checked: no console error in the smoke test).
+
 ## Common mistakes
 
 - Sign-up left on. Anyone who finds the live site makes an account and reads every customer.
 - Copying a port from an example or another project. Two projects then fight over one port.
 - Smoke tests on the owner's database.
 - Stopping a server by PID without checking that it is this project's.
+- A public page with no title and description in the customer's words, or business facts (ratings, offices, prices) the owner never confirmed.
 - Running `pnpm create astro` into a folder that is not empty.
 - Adding the Cloudflare adapter because a tutorial did.
 - `client:load` everywhere. Ship less JS.
@@ -737,6 +814,8 @@ Every call has: a named `use` (for logging), a model choice, a timeout, and a ca
 - Trailing-slash mismatch between links and `html_handling`.
 
 ## Last verified
+
+2026-09-25, for "Search basics": the layout, the home page facts, the sitemap filter and `robots.txt` above were built as written in a scratch project (astro 7.3.5, @astrojs/sitemap as installed by step 4): the sitemap listed only `/`, `/login/` and `/app/` carried `noindex`, the JSON-LD block was in the page, and typecheck and the smoke test (no console errors) passed. Principles from Google Search Central (developers.google.com/search/docs) and schema.org's LocalBusiness type; no ranking effect was measured.
 
 2026-09-24, for "Login (Better Auth)", "Demo data", the smoke tests' own database and the port rule, on Windows 11 with Node 22.15.0, pnpm 11.1.2, astro 7.3.5, wrangler 4.137.0, better-auth 1.7.5, Playwright 1.63.0. The code in those sections was run as written in a scratch project: sign-up refused (HTTP 400) at `localhost` and `127.0.0.1`, the owner signed in at both with a password from `pnpm run owner` (clipboard path), the `--sql-out` file applied locally and signed in, build, typecheck, unit and smoke tests passed, the smoke test failed when `disableSignUp` was set to false, and the owner's database files were byte-for-byte the same after `pnpm run smoke`. Better Auth pages read that day: installation, email-password, options, database, CLI. The terminal path of `make-owner.mjs` (printing the password) and every live-site step were not run.
 

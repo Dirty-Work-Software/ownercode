@@ -54,3 +54,5 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 2026-09-24, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6. Install, update and a safety-guard block were run in both tools against a local copy of this repository. Command names can change; if one fails, ask the agent to read the tool's current plugin docs.
 
 Version 0.2.1: guard repair guidance uses the marketplace where Ownercode was installed, including a bundled distribution.
+
+Version 0.2.2: the start prompt asks how customers find you (competitors, their search words, your area), and every public page gets the search basics.
