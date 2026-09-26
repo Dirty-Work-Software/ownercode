@@ -4,7 +4,7 @@ You are setting up a brand-new project for a non-technical founder. I am the fou
 
 A business website and/or small business software (customers, bookings, jobs, members), on a fixed tech stack. What the software does and who it is for is NOT decided yet.
 
-This session does three things: set up the project folder, interview me, and turn my answers into a plan and task files. Then it ends. It does not build anything. The next session starts fresh, on a cheaper model, with the Ownercode skills and guards loaded, and builds from the task files.
+This session does three things: set up the project folder, interview me, and turn my answers into a plan and task files. Then it ends. It does not build anything. The next session starts fresh, on the same strong model at High effort, with the Ownercode skills and guards loaded, and builds from the task files.
 
 ## The stack (fixed, do not propose alternatives)
 
@@ -82,17 +82,17 @@ Once I say go:
 3. In place of the handoff skill's usual ending, end your reply with exactly this, filled in:
 
 > **Session 1 is done.** The plan is saved, and nothing is built yet.
-> Next: start a new session in this same folder. <Claude Code: Pick **Sonnet** in the model picker next to the message box. Codex: Type `/model` and pick <the Codex build model named in `docs/versions.md`>. Write only the line for the tool you run in.> Then paste this line:
+> Next: start a new session in this same folder. <Claude Code: Pick the **Opus** model named in `docs/versions.md`, with **High** effort. Codex: Pick the **Astra** model named in `docs/versions.md`, with **High** effort. Write only the line for the tool you run in.> Then paste this line:
 > ```
 > Read docs/handoff-next.md and continue.
 > ```
 > Before then, if the check above found something missing, fix it: <the one or two things, or "nothing">.
 
-Do not start task 001 in this session, even if I ask you to keep going. Explain in one line that a fresh session loads the kit's skills and guards and costs much less.
+Do not start task 001 in this session, even if I ask you to keep going. Explain in one line that a fresh session loads the kit's skills and guards and starts from the saved plan.
 
 ## Why two sessions
 
-The interview and the plan need a big model. Building from a good plan does not, and a big model re-reading this whole conversation on every step is where most of the money goes. A new session also starts with every Ownercode skill and guard loaded.
+Planning and building both use the strong model in `docs/versions.md` at High effort. A fresh session reads the saved decisions without carrying the full interview into every build step. It also starts with every Ownercode skill and guard loaded. Sonnet is reserved for purely mechanical work where even Opus at Low would be excessive.
 
 ## Working rules for you, today and always
 
@@ -104,5 +104,7 @@ The interview and the plan need a big model. Building from a good plan does not,
 Begin: set up the folder, then start the interview.
 
 ## Last verified
+
+Model policy updated 2026-09-25: Opus or Astra at High for both sessions; model controls checked against official docs. The earlier build evidence below does not verify this new model policy end to end.
 
 2026-09-24, with Claude Code 2.1.159 and Codex CLI 0.144.6: the skill names and the start-of-session messages above, and the build sessions from a plan this prompt wrote (the second re-run). The build steps it points to were run on this date (see the Last verified line in `docs/astro-cloudflare-conventions.md`). If a skill name does not work, list the Ownercode skills your tool shows and use the matching one.

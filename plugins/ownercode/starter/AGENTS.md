@@ -77,7 +77,7 @@ Process:
 - Never `rm -rf` on project folders. `[gate: .claude/settings.json denies it for .git, .claude and the drive, and asks for every other rm -r or rm -f; in Codex, .codex/rules/ownercode.rules, start of a command only]`
 - **Claude Code on Windows:** the PowerShell tool is off in this project, so every command goes through Bash, where the guards watch. Do not ask to turn it back on. `[gate: .claude/settings.json]`
 - Live-site secrets go in with `npx wrangler secret put NAME`, run by the owner in their own terminal. Never ask for a key in chat. `[advisory]`
-- **Cheapest model that can do the step.** Helper agents for search, listing, bulk edits, and test runs get the smallest model. Planning, data modeling, and hard bugs get the largest. When the owner is running a big model on trivial work, say so once and name the switch. `[advisory]`
+- **Use the strong model by default.** For setup, planning, building, debugging, tests and review, use the Claude or Codex model in `docs/versions.md` at High effort. This applies to helper agents too. In Claude Code, Sonnet is only for purely mechanical work where even Opus at Low would be excessive: an exact text lookup, a supplied typo replacement, or running a known command and reporting its output. A clear plan alone does not justify Sonnet. If judgment, code behavior or failure diagnosis is needed, keep Opus. Never silently change models or claim a switch you cannot verify. `[advisory]`
 - Simplest design with a six-month horizon. Call out shortcuts that will force rework and let the owner pick. `[advisory]`
 - Keep this file current. Folder map, state line, and rules. It is the project's memory across sessions. `[advisory]`
 

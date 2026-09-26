@@ -51,7 +51,7 @@ deployed: <url or "not deployed">   verified: <yes/no, how>
 Also save the same block to `docs/handoff-next.md`, overwriting. Do not show the owner the block. Your reply is exactly these three parts, in this order, with nothing technical before the first:
 
 1. **In plain English**, two lines: what the owner can do now that they could not before, and what the next session does.
-2. The model for the next session, in one line, by the tool you run in. Claude Code, building from a clear task: "Pick **Sonnet** in the model picker". Codex: "type `/model` and pick <the Codex build model named in `docs/versions.md`>"; never name a Claude model in Codex. Planning, a data-model change, or a bug two sessions could not fix: the biggest model (Codex: the plan model in `docs/versions.md`).
+2. The model for the next session, in one line, by the tool you run in: pick the Claude or Codex default from `docs/versions.md` at **High** effort. Planning and building use the same strong model. In Claude Code, Sonnet is only for purely mechanical work where even Opus at Low would be excessive; a build from a clear plan does not qualify. In Codex, never name a Claude model. Name the model picker or `/model` and the effort control; do not claim a setting changed without checking.
 3. The paste, in its own copy box, with one line before it: "Start a new session in this folder and paste this line:"
    ```
    Read docs/handoff-next.md and continue.

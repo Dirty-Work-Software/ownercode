@@ -82,28 +82,28 @@ Neither tool stops a pipe that runs a script straight from the internet, like `c
 
 *Skim this now. Come back when you look at your bill.*
 
-Both tools let you pick which model does the work and how hard it thinks. Wrong choices cost you ten times the money and ten times the wait for the same result. Learn this early.
+Both tools let you pick which model does the work and how hard it thinks. Model and effort choices affect quality, time and usage. Check both before you start.
 
-**The Claude models, smallest to biggest.** Names change a few times a year; the ladder does not. Codex has its own ladder of OpenAI models with the same idea: a small one for chores, a big one for planning. Its names change often, so this guide names none.
+**Ownercode's default: keep the strong model for setup, planning and building.** This is our model policy, not the vendor's default setting.
 
-| Model | Use it for | Do not use it for |
+| Tool | Pick | Effort |
 |---|---|---|
-| **Haiku** (small, fast, cheap) | Rename a file, fix a typo, run the tests and tell me what failed, search the code for X, bulk edits with a clear pattern. | Anything with a decision in it. |
-| **Sonnet** (mid) | Building a screen or endpoint from a clear plan, normal bug fixes, writing tests, day-to-day work. Nine tasks in ten. | Designing the data model. Debugging something three sessions old. |
-| **Opus** (big) | Planning a feature, designing the database, a bug nobody can find, reviewing a plan before you say go, anything where being wrong costs a day. | Trivial edits. It will do them fine and bill you for a big brain. |
-| **Fable / the newest top model** (biggest) | The hard ten percent: architecture, a stuck problem, a review of everything before launch. It can cost extra on top of your plan; the model picker says so. | Anything you would give Sonnet. |
+| Claude Code | **Opus 5.5 or a newer Opus** | **High** |
+| Codex | **GPT-6 Astra** | **High** |
 
-Your plan picks the starting model, and today that is the big one (Opus). So switch down yourself: the start prompt's first session plans on the big model, then tells you to pick Sonnet for the building sessions.
+**Where to set it.** Use the model picker and effort control in the app. In Claude Code's terminal, type `/model` to choose Opus, then `/effort high`. In the Codex terminal, type `/model` and select Astra and High. Check the displayed setting before you paste a prompt. If your account does not offer that model, ask the agent to check the available choices; do not let it silently substitute one.
 
-**Effort** is a second dial, from low to max. It sets how long the model thinks before it acts. Low for "do this obvious thing." High for "plan this" or "find this bug." The default is fine most days. In the Claude app, press Ctrl+Shift+E for the effort menu.
+**Sonnet is for mechanical work only.** An exact text lookup, a supplied typo replacement, or running a known test command and reporting its output can qualify. Use it only when even Opus at Low would be excessive. Building a screen, changing an endpoint, designing a test, reviewing code or diagnosing a failure stays on Opus. A clear plan is not a reason to switch down.
 
-**Fast mode** in Claude Code (`/fast`) makes the big model answer quicker at the same quality, but it is billed as extra usage on top of your plan. Leave it off unless you are watching and waiting and know the cost.
+**Helpers follow the same rule.** Keep the strong model when a helper must make judgments. A helper that only returns exact search matches can use Sonnet. It must hand unexpected findings back to the strong model.
 
-**The habit:** start a session with the model that matches the hardest step in that session. Plan with a big model. Then start a new session with a mid model and hand it the plan. A mid model executes a good plan better than a big one improvises one. When it spins on a bug for two tries, stop, switch up, do not let it try a third time.
+**Effort** controls how much reasoning the model uses. Start at High. The agent must not claim it changed the setting unless it can verify it. Strong models can use more of your allowance; check usage in your tool.
 
-**Where to set it.** In the Claude desktop app, the model picker sits next to the message box. In the Claude Code terminal and in Codex, type `/model`. You can change models mid-session; the conversation stays.
+**Fast mode** is separate from effort. Leave it off unless you have checked its extra cost.
 
-**Subagents.** When the agent spawns helpers for search or bulk work, it can give them a smaller model. Your `AGENTS.md` tells it to. If you see it spawn three big-model helpers to search for a word, tell it: "use the small model for search helpers."
+**A fresh session still helps.** End planning with a saved plan and task files. Start building in a new session on the same strong model at High. This keeps the interview history out of the build session and loads the Ownercode skills and guards.
+
+Model and effort controls checked 2026-09-25 against [Claude Code model configuration](https://code.claude.com/docs/en/model-config) and [Codex models](https://learn.chatgpt.com/docs/models). Current choices and checks also live in `docs/versions.md`.
 
 ## 3b. Tasks: how work survives across sessions
 
@@ -141,7 +141,7 @@ This is the part most people skip, and it is why their second week is worse than
 
 Ownercode gets fixes. Two things can be out of date: the plugin, and your project's own files.
 
-**The plugin.** Codex updates it by itself when a session starts. Claude Code does not, until you turn on auto-update once (section 5, step 3). To update by hand at any time, type these in a terminal:
+**The plugin.** Codex updates it by itself when a session starts. Claude Code does not, until you turn on auto-update once (section 5, step 4). To update by hand at any time, type these in a terminal:
 - Claude Code: `claude plugin marketplace update ownercode`, then `claude plugin update ownercode@ownercode`, then restart Claude Code.
 - Codex: `codex plugin marketplace upgrade ownercode`.
 
@@ -151,19 +151,19 @@ Ownercode gets fixes. Two things can be out of date: the plugin, and your projec
 
 **git** is a save-history for your files. A **commit** is one save point with a message. A **branch** is a parallel line of save points; `main` is the real one. **GitHub** is the website that stores a copy of the history and lets you see it in a browser. A **pull request** (PR) is "please put my branch into main." You will almost never type git commands. The agent does. You will run the commit skill, and later say "push this and open a PR." What you must understand: **committed and pushed means safe. Anything else can be lost.** Ask "is this committed?" whenever you are unsure.
 
-## 5. One-time setup (do these yourself, in this order)
+## 5. One-time setup (let the agent help)
 
-Most of this involves accounts, passwords, or payment. You must do those parts. But the agent can drive the browser for the clicking-around parts, and it is often better at it than you following a tutorial, because tutorials go stale and the agent reads the live page. See "Let the agent use your browser" at the end of this section.
+Open your tool in a new, empty short-path folder, choose the model from section 3a, and paste [SETUP-PROMPT.md](SETUP-PROMPT.md). The agent installs missing tools and walks through this list. You handle passwords, account consent, payments, administrator approval, and hook trust. But the agent can drive the browser for the clicking-around parts, and it is often better at it than you following a tutorial, because tutorials go stale and the agent reads the live page. See "Let the agent use your browser" at the end of this section.
 
-1. **Git for Windows** (git-scm.com). Do this before anything else. Take all defaults. Both tools use git to download the plugin. It also gives you "Git Bash," the shell Claude Code runs commands in.
+1. **Git for Windows** (git-scm.com). The agent checks for Git first and installs it if missing, with your approval when needed. Both tools use git to download the plugin. It also gives you "Git Bash," the shell Claude Code runs commands in.
 2. **Pick your tool.** One of these:
    - **Claude.** Get a Pro or Max subscription at claude.ai. Max is worth it once you use it daily; Pro hits limits fast. Then get the **Claude desktop app** (claude.ai/download). Open it, sign in, click the **Code** tab. That is Claude Code. There is also a terminal version; the app is easier to start with.
    - **Codex.** Install Codex from OpenAI and sign in with a ChatGPT account whose plan includes Codex. On Windows, OpenAI's page `learn.chatgpt.com/docs/windows/windows-app` names the install to use. On Windows, read "Codex on Windows" below first.
-3. **Install the Ownercode plugin.** It comes from the public GitHub repo `Dirty-Work-Software/ownercode`.
+3. **Node.js** version 22 or newer (nodejs.org, the LTS button). The safety guards run on it. Then open PowerShell and run `corepack enable` so `pnpm` works. If that command errors ("corepack is not recognized" or similar — newer Node versions are dropping it), run `npm install -g pnpm` instead; same result. `pnpm` is the package installer this stack uses.
+4. **Install the Ownercode plugin.** Node is now installed, so the safety guards can run. It comes from the public GitHub repo `Dirty-Work-Software/ownercode`.
    - **Claude Code:** in a session, type `/plugin marketplace add Dirty-Work-Software/ownercode`, then `/plugin install ownercode@ownercode`. In a terminal, the same thing is `claude plugin marketplace add Dirty-Work-Software/ownercode`, then `claude plugin install ownercode@ownercode`. In the desktop app, the plugin browser works too. Then turn on updates once: type `/plugin`, go to Marketplaces, pick ownercode, choose Enable auto-update.
-   - **If a window asks you to sign in to Git or GitHub while this runs, close it.** Ownercode needs no account and no sign-in. The window comes from Git's sign-in helper, and it means the address has a typo or the repo cannot be reached. Check the spelling and try again.
+   - **If a window asks you to sign in to Git or GitHub while this runs, close it.** Ownercode needs no account and no sign-in. Check the repository spelling and connection before trying again. GitHub sign-in is needed later for your own backups, not this public plugin.
    - **Codex:** in a terminal, run `codex plugin marketplace add Dirty-Work-Software/ownercode`, then `codex plugin add ownercode@ownercode`. Then open Codex, type `/hooks`, trust the Ownercode hooks, and restart Codex. **Until you do this, the safety guards are OFF.**
-4. **Node.js** version 22 or newer (nodejs.org, the LTS button). The safety guards run on it. Then open PowerShell and run `corepack enable` so `pnpm` works. If that command errors ("corepack is not recognized" or similar — newer Node versions are dropping it), run `npm install -g pnpm` instead; same result. `pnpm` is the package installer this stack uses.
 5. **GitHub account** (github.com). Free. Then install the GitHub CLI (cli.github.com) and run `gh auth login` in PowerShell. Follow the prompts in the browser. This lets the agent create repos and pull requests for you.
 6. **Cloudflare account** (dash.cloudflare.com). Free tier covers a lot. Add a domain later; not needed to start.
 7. **Wrangler login.** In PowerShell: `npx wrangler login`. A browser tab opens; click allow. This is how the agent deploys to Cloudflare.
@@ -171,7 +171,7 @@ Most of this involves accounts, passwords, or payment. You must do those parts. 
 
 Then: make an empty folder with a short path, for example `C:\Projects\my-app`. Not inside Documents, Desktop, or OneDrive: on Windows, the local database cannot open from a deep folder. Open your tool in that folder (in the Claude app: Code tab, pick the folder) and paste Part 2, the start prompt.
 
-The start prompt runs two sessions. The first interviews you and writes the plan and the task list, on the big model. It builds nothing. It ends by telling you to start a new session, pick the smaller model it names, and paste one line. The second session builds the first page, puts it live, and tests the guards.
+The start prompt runs two sessions. The first interviews you and writes the plan and the task list, on the big model. It builds nothing. It ends by telling you to start a new session, keep Opus or Astra at High effort, and paste one line. The second session builds the first page, puts it live, and tests the guards.
 
 The start prompt runs the Ownercode setup skill. It writes your project's own files: `AGENTS.md` (the rules), `CLAUDE.md` (the one line that points Claude Code at `AGENTS.md`), `docs/`, `tasks/`, `.gitignore`, each tool's settings (`.claude/settings.json` and `.codex/`), and a `.ownercode/` folder. That last one records what setup wrote, so updates can tell which files you changed.
 

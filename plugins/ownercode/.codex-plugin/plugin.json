@@ -1,6 +1,6 @@
 {
   "name": "ownercode",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Rules, task system, safety guards and stack skills for building on Astro and Cloudflare with an AI agent.",
   "author": { "name": "Dirty Work Software" },
   "homepage": "https://ownercode.dev",

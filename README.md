@@ -13,9 +13,9 @@ Three parts:
 ## Order of operations
 
 1. Read GUIDE.md sections 1, 3, 3b and 4 (about 10 minutes). Skim sections 2 and 3a now; read them properly later.
-2. Do the one-time setup in GUIDE.md section 5. Install **Git first**: both tools need it to download the plugin.
-3. Install the plugin (below).
-4. Make an empty folder with a short path, such as `C:\Projects\my-app` (GUIDE.md section 5 says why). Open your tool in it. Paste START-HERE-PROMPT.md. Answer its questions. This first session plans and writes the task list; it builds nothing.
+2. Open Claude Code or Codex in a new, empty folder with a short path. Choose **Opus 5.5 or a newer Opus, High effort**, or **GPT-6 Astra, High effort** in Codex.
+3. Paste [SETUP-PROMPT.md](SETUP-PROMPT.md). The agent explains the guide, installs missing tools (Git first, then Node before the plugin), completes the setup it can, and shows the account and approval steps you must do. Restart when it tells you to.
+4. Reopen that same folder, such as `C:\Projects\my-app`. Keep the same model at High effort. Paste START-HERE-PROMPT.md. Answer its questions. This first session plans and writes the task list; it builds nothing.
 5. When it says it is done, start a new session in the same folder, pick the model it names, and paste the one line it gives you. That session builds the first page and puts it live.
 6. Read GUIDE.md sections 6 to 9 later, when you hit the situation they describe.
 
@@ -43,11 +43,9 @@ Check it: in a new Codex session, the first message must be `Ownercode safety gu
 
 On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.md section 5, "Codex on Windows", says what it is and what to do.
 
-**A window asks you to sign in to Git or GitHub?** Close it. Ownercode needs no account and no sign-in. That window means the address has a typo, or the repo cannot be reached. Check the spelling: `Dirty-Work-Software/ownercode`.
+**A window asks you to sign in to Git or GitHub?** Close it. Ownercode needs no account and no sign-in. Check the address and connection before you try again. Check the spelling: `Dirty-Work-Software/ownercode`.
 
-**Let the agent do it.** You can paste this to either agent instead:
-
-> Install the Ownercode plugin for the tool you are running in, from the plugin marketplace `Dirty-Work-Software/ownercode` on GitHub. Claude Code: `claude plugin marketplace add Dirty-Work-Software/ownercode`, then `claude plugin install ownercode@ownercode`. Codex: `codex plugin marketplace add Dirty-Work-Software/ownercode`, then `codex plugin add ownercode@ownercode`. Check that Git is installed first. Show me the output, then tell me to restart, and tell me any step I must do myself: in Claude Code, turning on auto-update (`/plugin`, Marketplaces, ownercode, Enable auto-update); in Codex, trusting the hooks (`/hooks`). If a command fails only inside your sandbox, say so, and give me the two lines to type in my own terminal.
+**Let the agent do it.** Copy the box in [SETUP-PROMPT.md](SETUP-PROMPT.md). It covers the guide, missing tools, installation, approvals and restart. You still handle account consent, hook trust, and the business interview.
 
 ## Last verified
 
@@ -60,3 +58,5 @@ Version 0.2.2: the start prompt asks how customers find you (competitors, their 
 Version 0.2.3: a new guard stops the agent from saving an edit to a database change that already ran; clearer steps when Codex's Windows sandbox blocks a build; closing a task asks you about every price or schedule the agent picked alone; a plain message when an update lands while a session starts.
 
 Version 0.2.4: in Codex, when a later update lands during a session, each command stops with a message to restart, so no command runs unchecked.
+
+Version 0.2.5: guided setup installs missing tools with approval; planning and building stay on Opus or Astra at High effort. Model controls and hook review checked against official docs on 2026-09-25. Fresh-machine setup with this prompt is not yet tested.
