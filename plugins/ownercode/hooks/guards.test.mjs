@@ -200,6 +200,9 @@ export const CASES = [
   [Q, 'clean', "node -e \"require('child_process').execSync('pnpm run build && wrangler deploy')\""],
   [B, 'clean', "node -e \"require('child_process').execSync('npx wrangler d1 execute DB --remote --command \\\"DROP TABLE contacts\\\"') // tidy up\""],
   [B, 'clean', "sed -n p .dev.vars"],
+  // Known limit: backticks in a script string may run, so this asks (see guards.mjs header).
+  [Q, 'clean', "node -e 'edit(\"tasks/014.md\", \"- [ ] `pnpm run deploy` has run\")'"],
+  [Q, 'clean', "node -e 'require(\"child_process\").execSync(\"echo `pnpm run deploy`\")'"],
   // Printed text names a file but opens nothing (2026-09-28 trial, task 012).
   [A, 'clean', 'ls -la .dev.vars 2>/dev/null || echo "NO .dev.vars"'],
   [A, 'clean', 'test -f .dev.vars && echo "has .dev.vars"'],

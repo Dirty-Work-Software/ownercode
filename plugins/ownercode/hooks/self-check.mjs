@@ -130,6 +130,11 @@ if (!byHand) {
   // that until a stranger uses it, so look for it at every start.
   let gate = '';
   try { gate = readFileSync(join(project, 'functions', '_middleware.ts'), 'utf8'); } catch {}
+  // Two more ways the check and the router can see different paths: a check that
+  // decodes %2F and then resolves "..", or one that never refuses %2f, %5c and %2e.
+  if (/getSession/.test(gate) && /toLowerCase\(\)/.test(gate) && (/\.pop\(\)/.test(gate) || !/2f\|5c\|2e/i.test(gate))) {
+    notes.push('SECURITY: functions/_middleware.ts decodes the path but does not refuse encoded slashes and dots (%2f, %5c, %2e), or it resolves "..". The router keeps ..%2Fauth%2Fx inside one segment, so /api/<route>/..%2Fauth%2Fx can reach a private route with no sign-in. Tell the owner first, in plain words, before any other work. Then run the Ownercode sync skill, copy gatePath from "Login (Better Auth)" in docs/astro-cloudflare-conventions.md, update the smoke test "signed out: every spelling of a private path is refused", and run pnpm run smoke. If the live site has this middleware, ask the owner to deploy the fix today.');
+  }
   if (/getSession/.test(gate) && !/toLowerCase\(\)/.test(gate)) {
     notes.push('SECURITY: functions/_middleware.ts checks the login on the path exactly as typed. The router ignores upper and lower case, so a request to /API/... skips the check and anyone can read or change the customers. Tell the owner first, in plain words, before any other work. Then run the Ownercode sync skill, change the check to use gatePath as "Login (Better Auth)" in docs/astro-cloudflare-conventions.md shows, add its smoke test "signed out: every spelling of a private path is refused", and run pnpm run smoke. If the live site has this middleware, ask the owner to deploy the fix today.');
   }

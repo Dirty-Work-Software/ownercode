@@ -207,7 +207,7 @@ export default function Health() {
 }
 ```
 
-`src/pages/index.astro` imports `../styles/global.css` and `../components/Health.tsx`, and puts `<Health client:idle />` in the body, with a link above it: `<a href="/app/">Open the app</a>`. Every app screen must be reachable from the home page: an owner who types only the address must find the app.
+`src/pages/index.astro` imports `../styles/global.css` and `../components/Health.tsx`, and puts `<Health client:idle />` in the body, with a link above it: `<a href="/app/">Open the app</a>`. Every app screen must be reachable from the home page: an owner who types only the address must find the app. Its `<head>` has `<html lang="en">`, a `<title>` with the business name, and one plain `<meta name="description">` line in the owner's words (what the business does, and where). That is basic page hygiene, not a search plan: no sitemap, no extra pages.
 
 `src/pages/app/index.astro` holds one line until the first screen replaces it: "The app's screens come here, one task at a time." The first screen task makes `/app/` its page (or links every screen from it), and the login task puts it behind sign-in.
 
@@ -336,16 +336,18 @@ export const onRequest: PagesFunction<Env> = ({ request, env }) => getAuth(env, 
 import { getAuth, type Env } from './lib/auth';
 
 // The router finds a file without regard to case, so /API/jobs runs functions/api/jobs.ts.
-// Decide on the path it will match: decoded, lowercase, single slashes, . and .. resolved,
-// no trailing slash. Never gate on the raw url.pathname: /API/jobs would skip the check.
+// Decide on the path it will match: decoded, lowercase, single slashes, no trailing slash.
+// Never gate on the raw url.pathname: /API/jobs would skip the check.
+// An encoded slash, backslash or dot (%2f, %5c, %2e) stays inside one segment for the
+// router, but becomes a real one here, so the two would judge different paths
+// (/api/jobs/..%2Fauth%2Fx reached a private route). No real page needs them: refuse them,
+// and refuse . and .. segments too. Never resolve them.
 const gatePath = (pathname: string): string | null => {
+  if (/%(2f|5c|2e)/i.test(pathname)) return null;
   let decoded: string;
   try { decoded = decodeURIComponent(pathname); } catch { return null; }
-  const parts: string[] = [];
-  for (const s of decoded.replace(/\\/g, '/').toLowerCase().split('/')) {
-    if (s === '' || s === '.') continue;
-    if (s === '..') parts.pop(); else parts.push(s);
-  }
+  const parts = decoded.replace(/\\/g, '/').toLowerCase().split('/').filter((s) => s !== '');
+  if (parts.some((s) => s === '.' || s === '..')) return null;
   return '/' + parts.join('/');
 };
 const isApi = (p: string) => p === '/api' || p.startsWith('/api/');
@@ -603,7 +605,7 @@ test('a session in use gets a fresh cookie, so the owner stays signed in', async
 
 test('signed out: every spelling of a private path is refused', async ({ request, baseURL }) => {
   // The router ignores case, so a check that only sees /api/ would let /API/ through.
-  for (const path of ['/api/FIRST-PRIVATE-ROUTE', '/API/FIRST-PRIVATE-ROUTE', '/Api/FIRST-PRIVATE-ROUTE', '//api//FIRST-PRIVATE-ROUTE', '/%61pi/FIRST-PRIVATE-ROUTE', '/API/FIRST-PRIVATE-ROUTE/']) {
+  for (const path of ['/api/FIRST-PRIVATE-ROUTE', '/API/FIRST-PRIVATE-ROUTE', '/Api/FIRST-PRIVATE-ROUTE', '//api//FIRST-PRIVATE-ROUTE', '/%61pi/FIRST-PRIVATE-ROUTE', '/API/FIRST-PRIVATE-ROUTE/', '/api/FIRST-PRIVATE-ROUTE/..%2Fauth%2Fx', '/api/FIRST-PRIVATE-ROUTE/%2e%2e/x', '/api/FIRST-PRIVATE-ROUTE/..%5Cauth%5Cx']) {
     const res = await request.get(baseURL + path, { maxRedirects: 0 });
     expect(res.status(), path).not.toBe(200);
     expect(await res.text(), path).not.toContain('"ok":true');
@@ -713,6 +715,8 @@ test('home page island runs and shows the server result', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('health')).toContainText('Server OK: my-project');
   await expect(page.getByRole('link', { name: 'Open the app' })).toHaveAttribute('href', '/app/');
+  await expect(page).toHaveTitle(/\S/);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /\S{3}/);
   expect(errors).toEqual([]);
 });
 ```
@@ -768,6 +772,7 @@ Every call has: a named `use` (for logging), a model choice, a timeout, and a ca
 
 - Sign-up left on. Anyone who finds the live site makes an account and reads every customer.
 - A login check on the raw `url.pathname`. The router ignores case, so `/API/customers` skips a check that only looks for `/api/`. Use `gatePath` ("Login (Better Auth)").
+- A login check that decodes `%2F` and then resolves `..`. The router keeps `..%2Fauth%2Fx` inside one segment, so `/api/jobs/..%2Fauth%2Fx` looks open to the check and still reaches the jobs route. `gatePath` refuses encoded slashes, backslashes and dots, and never resolves `..`.
 - Copying a port from an example or another project. Two projects then fight over one port.
 - Smoke tests on the owner's database.
 - Stopping a server by PID without checking that it is this project's.
@@ -785,6 +790,10 @@ Every call has: a named `use` (for logging), a model choice, a timeout, and a ca
 - Trailing-slash mismatch between links and `html_handling`.
 
 ## Last verified
+
+2026-09-28, for `gatePath`'s refusal of `%2f`, `%5c`, `%2e` and dot segments, in a CRM built from this doc with a private route that takes a text id: with the resolving version, signed out, `/api/secret/..%2Fauth%2Fx`, its lowercase form, `%2E%2E%2Fauth%2Fx` and `..%5Cauth%5Cx` returned the private record (200); after the change each was refused, and the login tests still passed.
+
+2026-09-28, for the home page's title and meta description and their two smoke test lines, with Playwright 1.63.0 in a CRM built from this doc: without the description the test failed ("element(s) not found"); with it, the home tests passed.
 
 2026-09-28, for the session cookie refresh (`returnHeaders: true` and passing each `Set-Cookie` on) and the smoke test "a session in use gets a fresh cookie", with better-auth 1.7.6 (its `api/routes/session.mjs` extends a session older than `updateAge` and sets a new cookie with a fresh 7-day `Max-Age`), in a CRM built from this doc: with the old middleware, a session aged past one day was extended in the database but the answer carried no `Set-Cookie`, and the new test failed; after the change it passed, with all 13 login tests passing.
 

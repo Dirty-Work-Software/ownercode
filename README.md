@@ -51,7 +51,7 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 
 ## Latest release
 
-1.0.1: you stay signed in to your app while you use it. The login now passes on the fresh sign-in cookie each time your session is extended. If you built an app with Ownercode, your agent tells you at the start of your next session what to change, in one line, and a new check proves it.
+1.0.2, a security fix: your app's login now refuses web addresses with hidden (encoded) slashes and dots. Such an address could reach a private page without signing in. The home page also gets a title and a one-line description. If you built an app with Ownercode, your agent tells you at the start of your next session what to change, and a check proves it.
 
 ## License
 

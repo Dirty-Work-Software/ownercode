@@ -29,6 +29,12 @@
 // So every quoted string is read as a command too, and `pnpm run x` is read
 // from package.json. Commit messages and pull request text are dropped first,
 // so a message that mentions a command is not mistaken for it.
+//
+// Known limit (2026-09-28): a script that writes text naming a command in
+// backticks, such as node -e "...edit(f, \"run `pnpm run deploy` later\")",
+// gets the question for that command. Backticks in a script string can really
+// run (execSync hands the string to a shell), so they stay commands. The owner
+// answers no, or the agent writes the file with its editor instead.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
