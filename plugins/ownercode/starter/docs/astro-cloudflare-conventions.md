@@ -356,8 +356,12 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   const p = gatePath(url.pathname);
   if (p === null) return new Response('Bad request', { status: 400 });
   const gated = p === '/app' || p.startsWith('/app/') || (isApi(p) && !isOpenApi(p));
+  // Better Auth extends a session in use and sends a new cookie with it. Pass that cookie on,
+  // or the owner is signed out 7 days after signing in, however often they use the app.
+  let refreshed: string[] = [];
   if (gated) {
-    const session = await getAuth(env, request).api.getSession({ headers: request.headers });
+    const { headers: authHeaders, response: session } = await getAuth(env, request).api.getSession({ headers: request.headers, returnHeaders: true });
+    refreshed = authHeaders.getSetCookie();
     if (!session) {
       if (isApi(p)) return Response.json({ ok: false, error: 'Sign in first' }, { status: 401 });
       return Response.redirect(`${url.origin}/login/`, 302);
@@ -373,6 +377,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   // Never add default-src or script-src here: the two policies stack, and it would block every island.
   out.headers.set('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
   if (gated) out.headers.set('Cache-Control', 'no-store');
+  for (const c of refreshed) out.headers.append('Set-Cookie', c);
   return out;
 };
 ```
@@ -560,7 +565,7 @@ export default function LoginForm() {
 
 ```ts
 import { test, expect } from '@playwright/test';
-import { SMOKE_OWNER, userCount } from './setup.mjs';
+import { SMOKE_OWNER, ageSessions, userCount } from './setup.mjs';
 
 test('sign-up is refused and adds no user', async ({ request, baseURL }) => {
   const before = userCount();
@@ -585,6 +590,15 @@ test('owner signs in from the home page and sees the demo data', async ({ page }
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/app\/$/);
   await expect(page.locator('body')).toContainText('A NAME FROM seed/demo.sql');
+});
+
+test('a session in use gets a fresh cookie, so the owner stays signed in', async ({ request, baseURL }) => {
+  const signIn = await request.post('/api/auth/sign-in/email', { headers: { origin: baseURL! }, data: SMOKE_OWNER });
+  expect(signIn.ok()).toBe(true);
+  ageSessions();
+  const res = await request.get('/api/FIRST-PRIVATE-ROUTE');
+  expect(res.status()).toBe(200);
+  expect(res.headers()['set-cookie'] ?? '', 'the refreshed session cookie').toContain('session_token');
 });
 
 test('signed out: every spelling of a private path is refused', async ({ request, baseURL }) => {
@@ -654,7 +668,13 @@ export const SMOKE_DIR = '.wrangler/smoke';
 // Fixed test password: smoke database only, never a real account.
 export const SMOKE_OWNER = { email: 'smoke-owner@example.com', password: 'smoke-test-password-123' };
 
-const wrangler = (args) => execSync(`npx wrangler ${args} --local --persist-to ${SMOKE_DIR}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const wrangler = (args) => execSync(`npx wrangler ${args} --local --persist-to ${SMOKE_DIR}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
+
+// Make every smoke session look a day old, so the next request must extend it.
+export function ageSessions() {
+  const expires = new Date(Date.now() + 6 * 864e5 - 3600e3).toISOString();
+  wrangler(`d1 execute DB --command "UPDATE session SET expiresAt = '${expires}'"`);
+}
 
 export function userCount() {
   const out = wrangler('d1 execute DB --json --command "SELECT COUNT(*) AS n FROM \\"user\\""');
@@ -765,6 +785,8 @@ Every call has: a named `use` (for logging), a model choice, a timeout, and a ca
 - Trailing-slash mismatch between links and `html_handling`.
 
 ## Last verified
+
+2026-09-28, for the session cookie refresh (`returnHeaders: true` and passing each `Set-Cookie` on) and the smoke test "a session in use gets a fresh cookie", with better-auth 1.7.6 (its `api/routes/session.mjs` extends a session older than `updateAge` and sets a new cookie with a fresh 7-day `Max-Age`), in a CRM built from this doc: with the old middleware, a session aged past one day was extended in the database but the answer carried no `Set-Cookie`, and the new test failed; after the change it passed, with all 13 login tests passing.
 
 2026-09-28, for the login middleware's `gatePath` and the smoke test "signed out: every spelling of a private path is refused", with wrangler 4.141.0 and Playwright 1.63.0, in a CRM built from this doc: before the change, signed out, `/api/jobs` gave 401 but `/API/jobs` and `/Api/jobs` gave 200 with every customer; the new test failed on that middleware at `/API/customers` and passed after the change, with the project's other 26 login tests passing. The removal of the sitemap from steps 4 and "astro.config.mjs" was not re-run as a separate project.
 

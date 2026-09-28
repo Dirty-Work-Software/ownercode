@@ -49,6 +49,10 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 
 **Let the agent do it.** Copy the box in [SETUP-PROMPT.md](SETUP-PROMPT.md). It covers the guide, missing tools, installation, approvals and restart. You still handle account consent, hook trust, and the business interview.
 
+## Latest release
+
+1.0.1: you stay signed in to your app while you use it. The login now passes on the fresh sign-in cookie each time your session is extended. If you built an app with Ownercode, your agent tells you at the start of your next session what to change, in one line, and a new check proves it.
+
 ## License
 
 PolyForm Shield 1.0.0: use it for anything, run your business on it and share it, but do not sell a rival kit. The files it writes into your project are yours, with no conditions. See [LICENSE](LICENSE).

@@ -134,6 +134,13 @@ if (!byHand) {
     notes.push('SECURITY: functions/_middleware.ts checks the login on the path exactly as typed. The router ignores upper and lower case, so a request to /API/... skips the check and anyone can read or change the customers. Tell the owner first, in plain words, before any other work. Then run the Ownercode sync skill, change the check to use gatePath as "Login (Better Auth)" in docs/astro-cloudflare-conventions.md shows, add its smoke test "signed out: every spelling of a private path is refused", and run pnpm run smoke. If the live site has this middleware, ask the owner to deploy the fix today.');
   }
 
+  // Better Auth sends a new session cookie when it extends a session in use. A
+  // middleware that drops it signs the owner out 7 days after sign-in, and it
+  // looks like a random logout, so nobody would trace it here.
+  if (/getSession/.test(gate) && !/returnHeaders/.test(gate)) {
+    notes.push('functions/_middleware.ts drops the new cookie Better Auth sends when it extends a session, so the owner is signed out 7 days after signing in, however often they use the app. Tell the owner in one line, then run the Ownercode sync skill and change the login check as "Login (Better Auth)" in docs/astro-cloudflare-conventions.md shows (getSession with returnHeaders: true, and pass each Set-Cookie on). Add its smoke test "a session in use gets a fresh cookie" and run pnpm run smoke.');
+  }
+
   // Wrangler keeps the local database about 130 characters further down, and
   // Windows refuses paths over 260. See docs/versions.md.
   if (process.platform === 'win32' && project.length > 120) {
