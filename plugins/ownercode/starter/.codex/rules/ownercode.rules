@@ -1,0 +1,24 @@
+# Commands Codex must never run, or must ask about, in this project. The same
+# idea as the deny and ask lists in .claude/settings.json, as far as Codex rules
+# can say it: they match the start of a command only, so they cannot stop
+# "cat .env" or "curl | bash". The Ownercode plugin's guards cover more.
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr"], ["/", "~", ".git", "src", "public", "functions", "migrations", "docs", "tasks", ".claude", ".codex", ".ownercode"]],
+    decision = "forbidden",
+    justification = "Never delete project folders. Ask the owner.",
+)
+prefix_rule(
+    pattern = ["rm", ["-r", "-R", "-f", "-rf", "-fr", "-Rf", "-fR", "-rF", "--recursive", "--force"]],
+    decision = "prompt",
+    justification = "Deletes files for good. The owner approves each one.",
+)
+prefix_rule(
+    pattern = [["Remove-Item", "ri", "rmdir", "rd", "del"]],
+    decision = "prompt",
+    justification = "Deletes files for good. The owner approves each one.",
+)
+prefix_rule(
+    pattern = ["wrangler", "d1", "execute"],
+    decision = "prompt",
+    justification = "Changes the database directly. The owner approves each one.",
+)
