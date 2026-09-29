@@ -51,7 +51,7 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 
 ## Latest release
 
-1.0.2, a security fix: your app's login now refuses web addresses with hidden (encoded) slashes and dots. Such an address could reach a private page without signing in. The home page also gets a title and a one-line description. If you built an app with Ownercode, your agent tells you at the start of your next session what to change, and a check proves it.
+1.0.3: the safety guards ask fewer needless questions. A script that only writes text naming a command, or a search for a secret file's name, no longer stops your agent. A real deploy, a real read of a secret file, and a script that starts a program are still stopped or asked, as before.
 
 ## License
 

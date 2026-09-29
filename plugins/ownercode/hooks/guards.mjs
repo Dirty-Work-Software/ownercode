@@ -30,11 +30,15 @@
 // from package.json. Commit messages and pull request text are dropped first,
 // so a message that mentions a command is not mistaken for it.
 //
-// Known limit (2026-09-28): a script that writes text naming a command in
-// backticks, such as node -e "...edit(f, \"run `pnpm run deploy` later\")",
-// gets the question for that command. Backticks in a script string can really
-// run (execSync hands the string to a shell), so they stay commands. The owner
-// answers no, or the agent writes the file with its editor instead.
+// A node or python script that never starts a program (no child_process,
+// subprocess, exec, spawn, eval ...) runs no command. Its words are checked
+// only for opening a secret file, and its text strings with spaces in them are
+// prose. So a script that writes deploy: 'wrangler deploy' into package.json,
+// or a note that names `pnpm run deploy`, gets no question. A script that can
+// start a program is read in full, as before.
+//
+// A grep or rg pattern is text to look for, not a file: grep -iE "\.env|key"
+// opens nothing. The files after the pattern still count.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
@@ -58,16 +62,23 @@ const GUARDS = {
 
 const OPS = new Set([';', '&', '|', '(', ')', '`', '{', '}']);
 const SHELLS = /^(bash|sh|zsh|dash|pwsh|powershell|cmd)$/;
+const SCRIPTS = /^(node|python3?|py|deno|bun)$/;
+// What a script needs to start another program. A script with any of it is read in full.
+const SPAWN = /child_process|subprocess|__import__|process\.binding|spawn|\bpty\b|\b(exec\w*|fork|system|popen)\s*\(|Deno\.(run|Command)|Bun\.(spawn|\$)|\beval\s*\(|new Function|\bimport\s*\(|require\s*\(\s*[^'"\s)]/i;
+// Python '''text''' (not f'''...''', which runs code in {}) is file content, not code.
+const startsProgram = (code) => SPAWN.test(String(code).replace(/(?<![A-Za-z])('''|""")[\s\S]*?\1/g, ''));
 
 // Split a command into simple commands ("segments") of words, the way a shell
 // would: quotes removed, split at ; & | ( ) $( and new lines. Each quoted word
 // that could hold a command is split again, so nested commands are seen.
-export function segments(command, depth = 0) {
-  const out = [];
-  let words = [], quoted = [], w = '', inWord = false, wasQuoted = false, isData = false;
+// inert: the text is a script that starts no program (see the header).
+export function segments(command, depth = 0, inert = false) {
+  const out = [], extra = [];
+  let words = [], quoted = [], live = [], w = '', inWord = false, wasQuoted = false, isData = false, isLive = false;
   let heredocs = [];
-  const endWord = () => { if (inWord) { words.push(w); quoted.push(isData ? 'data' : wasQuoted); } w = ''; inWord = false; wasQuoted = false; isData = false; };
-  const endSeg = () => { endWord(); if (words.length) out.push({ words, quoted }); words = []; quoted = []; };
+  const endWord = () => { if (inWord) { words.push(w); quoted.push(isData ? 'data' : wasQuoted); live.push(isLive); } w = ''; inWord = false; wasQuoted = false; isData = false; isLive = false; };
+  const endSeg = () => { endWord(); if (words.length) out.push({ words, quoted, live }); words = []; quoted = []; live = []; };
+  const nest = (text, inertToo, printed = false) => segments(noComments(text), depth + 1, inert || inertToo).map((x) => ({ ...x, nested: true, printed: x.printed || printed }));
   const s = String(command);
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
@@ -80,13 +91,17 @@ export function segments(command, depth = 0) {
       for (const h of heads) {
         const end = s.indexOf(`\n${h.tag}\n`, i) >= 0 ? s.indexOf(`\n${h.tag}\n`, i) : (s.endsWith(`\n${h.tag}`) ? s.length - h.tag.length - 1 : s.length);
         const body = s.slice(i + 1, end + 1);
-        if (h.shell && depth < 4) out.push(...segments(body, depth + 1));
+        if (h.shell && depth < 4) extra.push(...segments(body, depth + 1, inert).map((x) => ({ ...x, nested: true })));
+        // python - <<'EOF' runs the body as a script. With <<EOF (tag not quoted) the shell runs $( ) and ` ` in it first.
+        if (h.script && depth < 4) extra.push(...nest(body, !startsProgram(body) && (h.quotedTag || !/\$\(|`/.test(body))));
         i = Math.min(s.length, end + h.tag.length + 1);
       }
       void seg;
       continue;
     }
     if (c === ' ' || c === '\t' || c === '\r') { endWord(); continue; }
+    // In script code a comma ends a value: exec('npx wrangler deploy', {...}).
+    if (c === ',' && depth > 0) { endWord(); continue; }
     if (c === '\\' && i + 1 < s.length) {
       const n = s[i + 1];
       if (n === '\n') { i++; continue; }
@@ -94,11 +109,17 @@ export function segments(command, depth = 0) {
       if (/[A-Za-z0-9._]/.test(n)) { w += c; continue; } // a Windows path, C:\Program Files
       w += n; i++; continue;
     }
+    // A python '''...''' or """...""" string in script code is one piece of text.
+    if ((c === "'" || c === '"') && depth > 0 && s.startsWith(c.repeat(3), i)) {
+      const close = s.indexOf(c.repeat(3), i + 3);
+      const end = close < 0 ? s.length : close;
+      w += s.slice(i + 3, end); inWord = true; wasQuoted = true; i = end + 2; continue;
+    }
     if (c === "'" || c === '"') {
       const close = c === "'" ? s.indexOf("'", i + 1) : findDoubleClose(s, i + 1);
       const end = close < 0 ? s.length : close;
       let body = s.slice(i + 1, end);
-      if (c === '"') body = body.replace(/\\(["\\$`])/g, '$1');
+      if (c === '"') { body = body.replace(/\\(["\\$`])/g, '$1'); if (/\$\(|`/.test(body)) isLive = true; } // the shell runs these
       // Inside a script, a string after a colon is a value in an object, such as a
       // package.json script being written to the file: data, not a command it runs.
       if (depth > 0 && /(^|[^:]):[ \t]*$/.test(s.slice(Math.max(0, i - 40), i))) isData = true;
@@ -109,7 +130,7 @@ export function segments(command, depth = 0) {
       const m = s.slice(i).match(/^<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1/);
       if (m) {
         endWord();
-        heredocs.push({ tag: m[2], shell: SHELLS.test(cmdWord(words)) });
+        heredocs.push({ tag: m[2], shell: SHELLS.test(cmdWord(words)), script: SCRIPTS.test(cmdWord(words)), quotedTag: !!m[1] });
         i += m[0].length - 1; continue;
       }
     }
@@ -119,20 +140,57 @@ export function segments(command, depth = 0) {
   }
   endSeg();
   // Nested commands: bash -c "...", node -e "execSync('...')", "$(...)".
+  // opens: the words the secret guard reads. A word that is read again as
+  // nested commands is judged there, not as one long file name.
   const all = [];
   for (const seg of out) {
     const words = dropMessages(seg);
-    all.push({ words, nested: depth > 0 });
-    if (depth >= 4) continue;
+    const c = cmdWord(seg.words);
+    const skip = new Set(), nested = [];
     // Text that echo prints names a file but opens nothing, unless it runs a command
     // inside ("$(cat .env)"). Only the secret guard skips it: echo "..." | bash still counts.
-    const prints = ['echo', 'printf', 'write-output', 'write-host'].includes(cmdWord(seg.words));
+    const prints = ['echo', 'printf', 'write-output', 'write-host'].includes(c);
+    const pattern = GREPS[c] ? grepPattern(seg.words, GREPS[c]) : -1;
+    // jq and npm pkg set only write text; they start no program.
+    const writesOnly = c === 'jq' || (['npm', 'pnpm', 'yarn'].includes(c) && seg.words[seg.words.findIndex((x) => !isAssign(x)) + 1] === 'pkg');
     seg.words.forEach((word, k) => {
-      const printed = prints && !/\$\(|`/.test(word);
-      if (seg.quoted[k] === true && words.includes(word) && /[\s;&|()`$]/.test(word)) all.push(...segments(noComments(word), depth + 1).map((x) => ({ ...x, nested: true, printed: x.printed || printed })));
+      const runs = /\$\(|`/.test(word);
+      if (k === pattern && !runs) { skip.add(k); return; }
+      if (!words.includes(word)) return;
+      if (inert && seg.quoted[k] && /\s/.test(word) && !isSecretPath(word.trim())) { skip.add(k); return; } // prose
+      if (seg.quoted[k] !== true || !/[\s;&|()`$]/.test(word) || depth >= 4) return;
+      skip.add(k);
+      const script = SCRIPTS.test(c) && !seg.live[k] && !startsProgram(word);
+      nested.push(...nest(word, script || writesOnly, prints && !runs));
     });
+    const opens = dropMessages({ words: seg.words.filter((_, k) => !skip.has(k)), quoted: seg.quoted.filter((_, k) => !skip.has(k)) });
+    all.push({ words, opens, nested: depth > 0, inert }, ...nested);
   }
-  return all;
+  return all.concat(extra);
+}
+
+// grep and rg: the first word that is not an option is the pattern, unless -e
+// or -f gives it (then there is none to skip). The options that take a value
+// differ per tool: grep -E takes none, rg -E takes one.
+const GREPS = { grep: 'mABCdD', egrep: 'mABCdD', fgrep: 'mABCdD', rg: 'mABCdgtTjMEr' };
+const GREP_LONG = /^--(max-count|after-context|before-context|context|devices|directories|glob|iglob|type|type-not|threads|max-columns|encoding|replace|max-depth|include|exclude|exclude-dir|label)$/;
+function grepPattern(words, takesValue) {
+  for (let k = words.findIndex((w) => !isAssign(w)) + 1; k < words.length; k++) {
+    const w = words[k];
+    if (w === '--') return k + 1 < words.length ? k + 1 : -1;
+    if (/^--(regexp|file)(=|$)/.test(w)) return -1;
+    if (w.startsWith('--')) { if (GREP_LONG.test(w)) k++; continue; }
+    if (/^-[a-zA-Z]/.test(w)) {
+      for (let j = 1; j < w.length; j++) {
+        if ('ef'.includes(w[j])) return -1;
+        if (takesValue.includes(w[j])) { if (j === w.length - 1) k++; break; }
+      }
+      continue;
+    }
+    if (w === '>' || w === '<') { k++; continue; }
+    return k;
+  }
+  return -1;
 }
 
 // A comment in a script or in text being written (// or # at the start of a word,
@@ -492,9 +550,9 @@ function notThisProject(pid, cwd) {
   return `process ${pid} does not run from this project (${what}). It may be another project's server or another AI session.`;
 }
 
-function checkSecretRead(words, found) {
+function checkSecretRead(words, opens, found) {
   if (NAMES_ONLY.has(cmdWord(words))) return;
-  for (const w of words) {
+  for (const w of opens) {
     for (const m of noComments(w).matchAll(SECRET_IN_TEXT)) {
       if (TEMPLATE.test(m[1])) continue;
       return found.push({ guard: 'secret', decision: 'block', reason: `this command opens a secret file (${m[1]}). Its keys would end up in the chat.` });
@@ -516,7 +574,9 @@ export function analyze(command, cwd = process.cwd(), depth = 0) {
   ctx.husky = /(^|[\s;&|])(export\s+)?HUSKY=0\b|\$env:HUSKY\s*=\s*['"]?0/i.test(text) && segs.some(({ words }) => words.some((w) => base(w) === 'git'));
   // Printed text fed to a shell runs, so the secret guard reads it again.
   const toShell = /\|\s*(\S*[\/\\])?(bash|sh|zsh|dash|pwsh|powershell|cmd)(\.exe)?(\s|$)/i.test(text);
-  for (const { words, printed } of segs) {
+  for (const { words, opens, printed, inert } of segs) {
+    if (!printed || toShell) checkSecretRead(words, opens, found);
+    if (inert) continue; // a script that starts no program runs no command
     const c = cmdWord(words);
     if (['cd', 'pushd', 'set-location', 'sl', 'chdir'].includes(c)) {
       const k = words.findIndex((w) => base(w) === c);
@@ -530,7 +590,6 @@ export function analyze(command, cwd = process.cwd(), depth = 0) {
       if (b === 'gh' && i === words.findIndex((x) => base(x) === 'gh')) checkGh(words, i, found);
       if (b === 'wrangler' && i === words.findIndex((x) => base(x) === 'wrangler')) checkWrangler(words, i, ctx, found);
     });
-    if (!printed || toShell) checkSecretRead(words, found);
     const script = depth < 3 ? scriptFor(words, ctx.cwd) : null;
     if (script) {
       const r = analyze(script, ctx.cwd, depth + 1);
