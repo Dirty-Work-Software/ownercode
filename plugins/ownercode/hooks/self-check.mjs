@@ -22,9 +22,9 @@
 // plugin's folder: if an update removes that folder mid-session, the project
 // hook stops each command until a restart.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
-import { tmpdir } from 'node:os';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
+import { join, dirname, basename, resolve } from 'node:path';
+import { tmpdir, homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -44,6 +44,23 @@ const readJson = (p) => { try { return JSON.parse(readFileSync(p, 'utf8')); } ca
 const matches = (matcher, tool) => !matcher || matcher === '*' || new RegExp(`^(?:${matcher})$`).test(tool);
 const findHook = (wiring, event, file) => (wiring?.hooks?.[event] || []).flatMap((g) => (g.hooks || []).map((h) => ({ ...h, matcher: g.matcher })))
   .find((h) => typeof h.command === 'string' && h.command.includes(`hooks/${file}`));
+
+// Claude Code updates one installed copy of a plugin at a time (the most specific
+// scope for this project), so a user copy and a project copy can drift apart, and
+// only one of them loads. Each line names a plugin whose copies here disagree.
+function copiesDisagree(file, project) {
+  const norm = (p) => resolve(p).replaceAll('\\', '/').toLowerCase();
+  const out = [];
+  for (const [id, list] of Object.entries(readJson(file)?.plugins || {})) {
+    if (!/^ownercode(-pro)?@/.test(id) || !Array.isArray(list)) continue;
+    const here = list.filter((c) => ['user', 'managed'].includes(c.scope) || (c.projectPath && norm(c.projectPath) === norm(project)));
+    if (new Set(here.map((c) => c.version)).size > 1) out.push(`${id}: ${here.map((c) => `${c.scope} ${c.version}`).join(', ')}. Tell the owner, and give them these lines for a terminal in this project folder, then a restart: ${here.map((c) => `claude plugin update ${id} --scope ${c.scope}`).join(' ; ')}`);
+  }
+  return out;
+}
+// A plugin folder named by its full path goes stale at the next update or move.
+// Project files name it by a lookup instead (two levels above the loaded skill).
+const pluginPaths = (text) => [...new Set(text.match(/(?<![\w./\\-])(?:[A-Za-z]:[\\/]|~[\\/]|\/)[^\s`'"<>()]*?[\\/]plugins[\\/][^\s`'"<>()]*?ownercode(?:-pro)?/gi) || [])];
 
 // 1. The wiring. Claude Code reads hooks/hooks.json; Codex reads the file its
 // manifest names. Each must call the guards, for every shell tool it has.
@@ -86,6 +103,15 @@ try {
   if (bad.length > 8) problems.push(`and ${bad.length - 8} more guard cases wrong.`);
 } catch (e) {
   problems.push(`the guards could not be tested: ${e.message}`);
+}
+
+// The two checks above, proved on made-up input, when run by hand.
+if (byHand) {
+  const t = join(tmpdir(), `ownercode-copies-${process.pid}.json`);
+  writeFileSync(t, JSON.stringify({ plugins: { 'ownercode@ownercode': [{ scope: 'user', version: '1.0.2' }, { scope: 'project', projectPath: '/p/A', version: '1.0.3' }, { scope: 'project', projectPath: '/p/B', version: '1.0.2' }], 'other@x': [{ scope: 'user', version: '1' }, { scope: 'project', projectPath: '/p/A', version: '2' }] } }));
+  if (copiesDisagree(t, '/p/a').length !== 1 || copiesDisagree(t, '/p/b').length) problems.push('self-check: the installed-copies check gives a wrong answer.');
+  try { unlinkSync(t); } catch {}
+  if (pluginPaths('C:\\Scratch\\kit-pro\\plugins\\ownercode-pro and `~/.claude/plugins/cache/ownercode/ownercode/1.0.3` but not free/plugins/ownercode or <pro-root>/skills').length !== 2) problems.push('self-check: the plugin-path check gives a wrong answer.');
 }
 
 // Everything above lives in the plugin's own files, which an update replaces.
@@ -139,6 +165,12 @@ if (!byHand) {
     notes.push('SECURITY: functions/_middleware.ts checks the login on the path exactly as typed. The router ignores upper and lower case, so a request to /API/... skips the check and anyone can read or change the customers. Tell the owner first, in plain words, before any other work. Then run the Ownercode sync skill, change the check to use gatePath as "Login (Better Auth)" in docs/astro-cloudflare-conventions.md shows, add its smoke test "signed out: every spelling of a private path is refused", and run pnpm run smoke. If the live site has this middleware, ask the owner to deploy the fix today.');
   }
 
+  // A deploy with no database binding: without this guard, every private page and the
+  // quote form crash the Worker (Cloudflare error 1101) instead of a plain 503.
+  if (/getSession/.test(gate) && !/!env\.DB\b/.test(gate)) {
+    notes.push('functions/_middleware.ts has no answer for a missing database binding, so a deploy without one crashes the Worker (error 1101) or loops to sign-in instead of a plain 503. Tell the owner in one line. On a free CRM: run the Ownercode sync skill and add the check and the try/catch as "Login (Better Auth)" in docs/astro-cloudflare-conventions.md shows, with its unit test "no database binding: a 503, not a crash". On an app built from the Ownercode Pro starter: take the check from the starter app\'s functions/_middleware.ts and its "no database binding" unit tests.');
+  }
+
   // Better Auth sends a new session cookie when it extends a session in use. A
   // middleware that drops it signs the owner out 7 days after sign-in, and it
   // looks like a random logout, so nobody would trace it here.
@@ -156,7 +188,18 @@ if (!byHand) {
   let have = null;
   try { have = readFileSync(join(project, '.ownercode', 'version'), 'utf8').trim(); } catch {}
   const now = readJson(join(PLUGIN, '.claude-plugin', 'plugin.json'))?.version;
-  if (have && now && have !== now) notes.push(`Ownercode was updated to ${now}. This project's starter files are from ${have}. Tell the owner, then run the Ownercode sync skill. It brings in the new files and never overwrites a file the owner changed.`);
+  if (have && now && have !== now) notes.push(`Ownercode was updated to ${now}. This project's starter files are from ${have}. Read ${join(PLUGIN, 'CHANGELOG.md')} from ${now} down to ${have}, and tell the owner in plain words what changed and what they must do. Then run the Ownercode sync skill. It brings in the new files and never overwrites a file the owner changed.`);
+
+  if (!codex) {
+    const installed = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'plugins', 'installed_plugins.json');
+    for (const d of copiesDisagree(installed, project)) notes.push(`Two installed copies of an Ownercode plugin disagree, and only one loads. ${d}`);
+  }
+  for (const f of ['AGENTS.md', 'CLAUDE.md', ...(existsSync(join(project, 'docs')) ? readdirSync(join(project, 'docs')).filter((n) => n.endsWith('.md')).map((n) => `docs/${n}`) : [])]) {
+    let text = '';
+    try { text = readFileSync(join(project, f), 'utf8'); } catch {}
+    const paths = pluginPaths(text);
+    if (paths.length) notes.push(`${f} names a plugin folder by its full path (${paths.join(', ')}). That folder changes with every update, so the path goes stale. Replace it with <pro-root> (the ownercode-pro plugin folder) or <plugin folder> (the ownercode one): each session finds it two levels above the loaded skill's folder.`);
+  }
 }
 
 // 5. Report.

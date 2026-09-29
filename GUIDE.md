@@ -142,8 +142,10 @@ This is the part most people skip, and it is why their second week is worse than
 Ownercode gets fixes. Two things can be out of date: the plugin, and your project's own files.
 
 **The plugin.** Codex updates it by itself when a session starts. Claude Code does not, until you turn on auto-update once (section 5, step 4). To update by hand at any time, type these in a terminal:
-- Claude Code: `claude plugin marketplace update ownercode`, then `claude plugin update ownercode@ownercode`, then restart Claude Code.
+- Claude Code: `claude plugin marketplace update ownercode`, then `claude plugin update ownercode@ownercode --scope user`. Then run `claude plugin list`. If Ownercode shows more than once, update each other copy too, from your project folder: `claude plugin update ownercode@ownercode --scope project` (or `--scope local`, as the list shows). An update changes one copy only. Then restart Claude Code.
 - Codex: `codex plugin marketplace upgrade ownercode`.
+
+**What changed.** Each update has a short list of what changed and what you must do: `CHANGELOG.md` in the plugin. After an update, ask the agent "What changed in Ownercode, and what must I do?" It reads that file.
 
 **Your project's files.** When the plugin is newer than your project's files, the session starts with a line that says so. Then run the sync skill. For files you never edited, it puts in the new version. For files you did edit, it shows you what Ownercode changed and asks before it merges. It never writes over your edits.
 
@@ -287,5 +289,7 @@ You still do not write code. That is the point.
 The kit is under PolyForm Shield 1.0.0: any use except selling a rival kit. Everything it writes into your project is yours. See `LICENSE`.
 
 ## Last verified
+
+2026-09-29, section 3c: code.claude.com/docs/en/plugins/cli-reference says `claude plugin update` with no `--scope` updates only the most specific copy for the current project (local, then project, then user). An update run on Claude Code 2.1.281 changed the project copy and left the user copy on the old version until `--scope user`.
 
 2026-09-24, on Windows 11 with Claude Code 2.1.159 and Codex CLI 0.144.6 (and 0.156.1 for the sandbox): plugin install, update, setup, sync and a guard block were run in both tools. "Codex on Windows": each sandbox kind was run with a throwaway Codex settings folder (git, pnpm, the admin window, the error box), and the second re-run's Codex build ran in the plain sandbox on 0.144.6 and 0.156.1 (both blocked) and in full access (built through the login task). OpenAI's pages on the Windows sandbox and the config file were read on the same date. The Claude Code facts in sections 2, 3 and 3a (permission modes, the mode selector, the usage ring, rewind, the starting model, effort levels, fast mode and Fable billing) were checked against code.claude.com on the same date; the model facts are also in `docs/versions.md`. Command names and menu paths can change; if one fails, ask the agent to read the tool's current docs.

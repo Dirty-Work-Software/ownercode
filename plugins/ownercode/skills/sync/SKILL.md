@@ -9,7 +9,9 @@ The plugin updates itself. The files it wrote into this project (`AGENTS.md`,
 the settings, `docs/`, `tasks/README.md`) change only when this runs.
 
 1. The plugin folder is two levels above this skill's folder (the folder that
-   holds this SKILL.md). Run, from the project root:
+   holds this SKILL.md). Read its `CHANGELOG.md`, from the plugin's version
+   down to the one in `.ownercode/version`. Tell the owner, in plain words, what
+   changed and each thing they must do. Then run, from the project root:
    `node "<plugin folder>/scripts/starter.mjs" sync`
 2. Files the owner never edited are replaced, and new files are added. Tell the
    owner which, in one line each.

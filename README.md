@@ -51,7 +51,7 @@ On Windows, Codex may show a box about `codex-windows-sandbox-setup.exe`. GUIDE.
 
 ## Latest release
 
-1.0.3: the safety guards ask fewer needless questions. A script that only writes text naming a command, or a search for a secret file's name, no longer stops your agent. A real deploy, a real read of a secret file, and a script that starts a program are still stopped or asked, as before.
+1.0.4: updates reach every installed copy, and each release lists what changed and what you must do, in `plugins/ownercode/CHANGELOG.md`. A site with no database connected answers with a plain message instead of crashing, and Cloudflare can no longer add a script the site blocks.
 
 ## License
 

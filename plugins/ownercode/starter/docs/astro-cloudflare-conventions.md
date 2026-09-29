@@ -257,9 +257,16 @@ export const onRequest: PagesFunction = async ({ next }) => {
   // script-src and style-src come from the <meta> tag Astro writes (security.csp in astro.config.mjs).
   // Never add default-src or script-src here: the two policies stack, and it would block every island.
   out.headers.set('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
+  out.headers.set('Cache-Control', noTransform(out.headers.get('Cache-Control')));
   return out;
 };
+
+// Cloudflare's proxy leaves a no-transform answer as sent, so it cannot add a script (such as
+// its Web Analytics beacon) that the page's CSP would block. The caching words stay as they are.
+const noTransform = (v: string | null) => (!v ? 'no-transform' : /no-transform/i.test(v) ? v : `${v}, no-transform`);
 ```
+
+Cloudflare Web Analytics: Cloudflare turns it on for a site on your own Cloudflare domain and adds its script to each page. The site's CSP blocks that script (a console error), so every answer says `no-transform` and Cloudflare adds nothing. If the owner wants those analytics, add the beacon to the CSP in `astro.config.mjs` and drop `no-transform`.
 
 Why: Astro starts each Preact island with a small inline script. A header with `script-src 'self'` blocks those scripts, so no island runs, and a page-load test stays green. `'unsafe-inline'` makes it work but throws away most of the protection. With `security: { csp: true }`, Astro writes a `<meta>` policy that allows exactly its own scripts by their hash.
 
@@ -353,6 +360,8 @@ const gatePath = (pathname: string): string | null => {
 const isApi = (p: string) => p === '/api' || p.startsWith('/api/');
 const isOpenApi = (p: string) => p === '/api/health' || p.startsWith('/api/auth/');
 
+const noTransform = (v: string | null) => (!v ? 'no-transform' : /no-transform/i.test(v) ? v : `${v}, no-transform`);
+
 export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   const url = new URL(request.url);
   const p = gatePath(url.pathname);
@@ -361,16 +370,24 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   // Better Auth extends a session in use and sends a new cookie with it. Pass that cookie on,
   // or the owner is signed out 7 days after signing in, however often they use the app.
   let refreshed: string[] = [];
-  if (gated) {
-    const { headers: authHeaders, response: session } = await getAuth(env, request).api.getSession({ headers: request.headers, returnHeaders: true });
-    refreshed = authHeaders.getSetCookie();
-    if (!session) {
-      if (isApi(p)) return Response.json({ ok: false, error: 'Sign in first' }, { status: 401 });
-      return Response.redirect(`${url.origin}/login/`, 302);
+  let res: Response;
+  try {
+    // A deploy with no database binding answers 503 below, not a crash (Cloudflare error 1101).
+    if (!env.DB && (gated || isApi(p))) throw new Error('no database binding: check d1_databases in wrangler.jsonc');
+    if (gated) {
+      const { headers: authHeaders, response: session } = await getAuth(env, request).api.getSession({ headers: request.headers, returnHeaders: true });
+      refreshed = authHeaders.getSetCookie();
+      if (!session) {
+        if (isApi(p)) return Response.json({ ok: false, error: 'Sign in first' }, { status: 401 });
+        return Response.redirect(`${url.origin}/login/`, 302);
+      }
     }
+    res = await next();
+  } catch (e) {
+    // No database, a missing secret, the database down: logged, and a 503 in place of a crash.
+    console.error('[request] failed', request.method, p, e);
+    res = Response.json({ ok: false, error: env.DB ? 'The service is not ready. Try again in a minute.' : 'The database is not connected.' }, { status: 503 });
   }
-
-  const res = await next();
   const out = new Response(res.body, res);
   out.headers.set('X-Content-Type-Options', 'nosniff');
   out.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -379,6 +396,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   // Never add default-src or script-src here: the two policies stack, and it would block every island.
   out.headers.set('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
   if (gated) out.headers.set('Cache-Control', 'no-store');
+  out.headers.set('Cache-Control', noTransform(out.headers.get('Cache-Control')));
   for (const c of refreshed) out.headers.append('Set-Cookie', c);
   return out;
 };
@@ -617,6 +635,21 @@ test('signed out: every spelling of a private path is refused', async ({ request
 
 Put one invented name from `seed/demo.sql` in place of `A NAME FROM seed/demo.sql`, and the app's first private API route (such as `customers`) in place of `FIRST-PRIVATE-ROUTE`. Also add one test per API route: signed out, it answers 401.
 
+And one unit test, `tests/unit/middleware.test.ts`, for a deploy with no database binding: every private page and API path answers 503, never a crash.
+
+```ts
+import { expect, test } from 'vitest';
+import { onRequest } from '../../functions/_middleware';
+
+test('no database binding: a 503, not a crash', async () => {
+  for (const [method, path] of [['GET', '/app/'], ['GET', '/api/FIRST-PRIVATE-ROUTE'], ['POST', '/api/auth/sign-in/email']]) {
+    const r = await onRequest({ request: new Request('http://localhost' + path, { method }), env: {}, next: async () => new Response('handler ran') } as never);
+    expect(r.status, path).toBe(503);
+    expect(r.headers.get('cache-control') ?? '', path).toContain('no-transform');
+  }
+});
+```
+
 ### Live site (the go-live task, not before)
 
 - `npx wrangler secret put BETTER_AUTH_SECRET`, run by the owner in their own terminal, with a new random value (not the one in `.dev.vars`).
@@ -790,6 +823,8 @@ Every call has: a named `use` (for logging), a model choice, a timeout, and a ca
 - Trailing-slash mismatch between links and `html_handling`.
 
 ## Last verified
+
+2026-09-29, for the login middleware's 503 with no database binding and `no-transform` on every answer, with better-auth 1.7.5 and vitest 5.0.1: the unit test "no database binding: a 503, not a crash" and a public page's `Cache-Control` both failed on the earlier middleware and passed on this one. Cloudflare's Web Analytics page (developers.cloudflare.com/web-analytics/get-started/) says it does not add its script to a `no-transform` answer.
 
 2026-09-28, for `gatePath`'s refusal of `%2f`, `%5c`, `%2e` and dot segments, in a CRM built from this doc with a private route that takes a text id: with the resolving version, signed out, `/api/secret/..%2Fauth%2Fx`, its lowercase form, `%2E%2E%2Fauth%2Fx` and `..%5Cauth%5Cx` returned the private record (200); after the change each was refused, and the login tests still passed.
 
